@@ -287,6 +287,36 @@
     trackingReviewTitle: 'BNC HayMate',
     trackingReviewSub: '',
     trackingReviewBtnText: 'เขียนรีวิว & ให้คะแนนร้าน',
+    trackingContactLabel: '💬 ทักแชทแจ้งออเดอร์ (Line OA)',
+    trackingContactUrl: 'https://line.me/R/ti/p/@bnchaymate',
+    // Marquee Announcement Ticker Settings
+    announcementIcon: '📢',
+    announcementText: 'ยินดีต้อนรับสู่ BNC HayMate ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.',
+    announcementEnabled: true,
+    // Category Quantity & Tiered Pricing Settings
+    categoryPricing: {
+      'อุปกรณ์ขยายที่ดิน': [
+        { qty: 5, price: 10 },
+        { qty: 10, price: 18 },
+        { qty: 100, price: 150 }
+      ],
+      'อุปกรณ์อัปเกรดโกดัง': [
+        { qty: 5, price: 12 },
+        { qty: 10, price: 20 },
+        { qty: 100, price: 180 }
+      ]
+    },
+    // Level Categories & Ranges
+    levelRanges: ['Lv. 1 - 20', 'Lv. 21 - 40', 'Lv. 41 - 60', 'Lv. 61 - 80', 'Lv. 81 - 100+'],
+    // Mascot & Contact Channels (Home Page)
+    homeMascotImage: '',
+    homeMascotEmoji: '🌸',
+    homeContactTopText: 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์',
+    homeContactBottomText: 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.',
+    contactChannels: [
+      { id: 1, name: 'Line OA', link: 'https://line.me/R/ti/p/@bnchaymate', image: '', icon: '💬' },
+      { id: 2, name: 'Facebook', link: 'https://facebook.com', image: '', icon: '📘' }
+    ],
     // Heart Rating Labels (Customizable in Settings)
     starLabel1: '1 ดวงใจ - ต้องปรับปรุง',
     starLabel2: '2 ดวงใจ - พอใช้ได้',
@@ -329,6 +359,15 @@
       loadedStore = { ...DEFAULT_STORE_CONFIG, ...JSON.parse(savedStore) };
       if (!loadedStore.payment_accounts || !Array.isArray(loadedStore.payment_accounts)) {
         loadedStore.payment_accounts = [];
+      }
+      if (!loadedStore.contactChannels || !Array.isArray(loadedStore.contactChannels)) {
+        loadedStore.contactChannels = DEFAULT_STORE_CONFIG.contactChannels;
+      }
+      if (!loadedStore.levelRanges || !Array.isArray(loadedStore.levelRanges)) {
+        loadedStore.levelRanges = DEFAULT_STORE_CONFIG.levelRanges;
+      }
+      if (!loadedStore.categoryPricing || typeof loadedStore.categoryPricing !== 'object') {
+        loadedStore.categoryPricing = DEFAULT_STORE_CONFIG.categoryPricing;
       }
     }
   } catch (e) {}
@@ -416,6 +455,78 @@
   }
   const money = (n) => getCurrencySymbol() + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const escapeHTML = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function getItemPrice(product, qty = 1) {
+    if (!product) return 0;
+    const cat = product.cat || '';
+    const catTiers = state.store?.categoryPricing?.[cat];
+    const nQty = Number(qty || 0);
+    if (nQty <= 0) return 0;
+
+    if (catTiers && Array.isArray(catTiers) && catTiers.length > 0) {
+      const validTiers = catTiers.filter(t => Number(t.qty) > 0 && Number(t.price) >= 0).sort((a, b) => Number(b.qty) - Number(a.qty));
+      if (validTiers.length > 0) {
+        // Check for exact tier match
+        const exact = validTiers.find(t => Number(t.qty) === nQty);
+        if (exact) return Number(exact.price);
+
+        // Tier breakdown calculation
+        let remaining = nQty;
+        let total = 0;
+        for (const tier of validTiers) {
+          const tQty = Number(tier.qty);
+          const tPrice = Number(tier.price);
+          if (remaining >= tQty) {
+            const count = Math.floor(remaining / tQty);
+            total += count * tPrice;
+            remaining %= tQty;
+          }
+        }
+        if (remaining > 0) {
+          const minTier = validTiers[validTiers.length - 1];
+          const unitRate = minTier ? (Number(minTier.price) / Number(minTier.qty)) : (Number(product.price) || 0);
+          total += remaining * unitRate;
+        }
+        return total;
+      }
+    }
+    return (Number(product.price) || 0) * nQty;
+  }
+
+  function updateTopbarHeader() {
+    const searchWrap = document.querySelector('.search-wrap');
+    if (!searchWrap) return;
+    if (!state.isAdmin) {
+      const icon = state.store.announcementIcon || '📢';
+      const text = state.store.announcementText || 'ยินดีต้อนรับสู่ BNC HayMate ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.';
+      searchWrap.className = 'search-wrap marquee-ticker-wrap';
+      searchWrap.innerHTML = `
+        <div class="ticker-badge">${escapeHTML(icon)} <span>ประกาศ</span></div>
+        <div class="ticker-content-track">
+          <span class="ticker-text-marquee">${escapeHTML(text)}</span>
+        </div>
+      `;
+      searchWrap.style.cursor = 'default';
+    } else {
+      searchWrap.className = 'search-wrap';
+      searchWrap.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+        <input type="text" id="globalSearchInput" placeholder="Search products, orders, customers..." />
+      `;
+      searchWrap.style.cursor = 'text';
+      const globalSearch = searchWrap.querySelector('#globalSearchInput');
+      if (globalSearch) {
+        globalSearch.addEventListener('input', (e) => {
+          const val = e.target.value.toLowerCase().trim();
+          if (val) {
+            state.page = 'products';
+            renderMenu();
+            renderPage();
+          }
+        });
+      }
+    }
+  }
 
   function renderHearts(rating, size = 12) {
     const r = Math.max(1, Math.min(5, Math.round(Number(rating) || 5)));
@@ -2171,6 +2282,7 @@
     if (fn) fn(page);
     window.scrollTo({ top: 0, behavior: 'instant' });
     updateStockNotifications();
+    updateTopbarHeader();
   }
 
   function renderLiveUsersList() {
@@ -3530,14 +3642,18 @@
           <input class="input" id="newCustomCatName" placeholder="เช่น Cakes, Specials, Coffee..." />
         </div>
 
-        <div class="grid" style="grid-template-columns: 1fr 1fr; gap:12px">
+        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; gap:12px">
+          <div class="field">
+            <label style="font-weight:700; font-size:12.5px;">ระดับเลเวล (Item Level) *</label>
+            <input type="number" class="input" id="pLevel" min="1" max="200" value="${existing ? (existing.level || 1) : 1}"/>
+          </div>
           <div class="field">
             <label style="font-weight:700; font-size:12.5px;">จำนวนสต็อก (Stock Quantity) *</label>
             <input type="number" class="input" id="pStock" value="${existing ? existing.stock : 50}"/>
           </div>
           <div class="field">
-            <label style="font-weight:700; font-size:12.5px;">คำบรรยาย / รสชาติ (Description / Flavor)</label>
-            <input class="input" id="pFlavor" placeholder="เช่น สตรอว์เบอร์รี่สด ครีมนุ่มละมุน" value="${existing?.flavor ? escapeHTML(existing.flavor) : ''}"/>
+            <label style="font-weight:700; font-size:12.5px;">คำบรรยาย / รสชาติ</label>
+            <input class="input" id="pFlavor" placeholder="เช่น ไอเทมขยายพื้นที่, สตรอว์เบอร์รี่" value="${existing?.flavor ? escapeHTML(existing.flavor) : ''}"/>
           </div>
         </div>
       </div>
@@ -3610,6 +3726,7 @@
               cat = 'Bakery';
             }
           }
+          const level = Number($('#pLevel')?.value || 1);
           const price = Number($('#pPrice')?.value || 8.50);
           const stock = Number($('#pStock')?.value || 50);
           const flavor = $('#pFlavor')?.value.trim() || '';
@@ -3624,6 +3741,7 @@
           if (existing) {
             existing.name = name;
             existing.cat = cat;
+            existing.level = level;
             existing.image = image;
             existing.price = price;
             existing.stock = stock;
@@ -3632,6 +3750,7 @@
             if (supabase) {
               const { error } = await supabase.from('products').update({
                 name,
+                level,
                 price,
                 stock,
                 cat,
@@ -3661,6 +3780,7 @@
               id: newId,
               name,
               cat,
+              level,
               price,
               stock,
               status,
@@ -3672,6 +3792,7 @@
               const storeId = state.storeId || '00000000-0000-0000-0000-000000000001';
               const { data: inserted, error } = await supabase.from('products').insert({
                 name,
+                level,
                 price,
                 stock,
                 cat,
@@ -3691,6 +3812,7 @@
                   id: inserted.id,
                   name: inserted.name,
                   cat: inserted.cat || cat,
+                  level: Number(inserted.level || level),
                   price: Number(inserted.price || price),
                   stock: Number(inserted.stock !== undefined ? inserted.stock : stock),
                   status: (inserted.stock === 0 || inserted.is_active === false) ? 'out' : (inserted.stock < 10) ? 'low' : 'active',
@@ -3802,6 +3924,70 @@
       </div>
     `);
     root.appendChild(catBar);
+
+    // Level Categories & Classification Management (Requirement 5)
+    const currentLevels = (state.store.levelRanges && state.store.levelRanges.length) ? state.store.levelRanges : DEFAULT_STORE_CONFIG.levelRanges;
+    const levelBar = el(`
+      <div class="card" style="margin-bottom:16px;">
+        <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:12px;">
+          <div>
+            <div class="card-title">Level Classification (หมวดหมู่เลเวลสินค้าในเกม)</div>
+            <div class="card-sub">ตั้งค่าช่วงเลเวลเพื่อใช้กรองในหน้าสินค้าของลูกค้า (All Levels Multi-Dropdown)</div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btnAddLevelRange">+ เพิ่มช่วงเลเวลใหม่</button>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;" id="levelRangesWrap">
+          ${currentLevels.map((lvl, idx) => `
+            <div style="background:var(--primary-50); border:1.5px solid var(--border); padding:6px 14px; border-radius:12px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--accent-text);">
+              <span>Lv. ${escapeHTML(lvl)}</span>
+              <button type="button" class="btn-del-level" data-idx="${idx}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:800; padding:0 2px; font-size:13px;" title="ลบช่วงเลเวลนี้">✕</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `);
+    root.appendChild(levelBar);
+
+    levelBar.querySelector('#btnAddLevelRange')?.addEventListener('click', () => {
+      openModal({
+        title: 'เพิ่มช่วงเลเวลใหม่ (Add Level Range)',
+        body: `
+          <div class="field">
+            <label>ระบุช่วงเลเวล (เช่น 1 - 10, 101 - 150, 150+)</label>
+            <input class="input" id="newLevelInput" placeholder="e.g. 101 - 150 หรือ 150+" />
+          </div>
+        `,
+        actions: [
+          { label: 'Cancel', kind: 'ghost' },
+          { label: 'เพิ่มช่วงเลเวล', kind: 'primary', onClick: () => {
+            const val = $('#newLevelInput')?.value.trim();
+            if (!val) return toast('โปรดระบุช่วงเลเวล', 'error');
+            if (!state.store.levelRanges) state.store.levelRanges = [...DEFAULT_STORE_CONFIG.levelRanges];
+            if (!state.store.levelRanges.includes(val)) {
+              state.store.levelRanges.push(val);
+              try { localStorage.setItem('haypos_store_settings', JSON.stringify(state.store)); } catch (e) {}
+              syncStoreSettingsAcrossDevices();
+              toast(`เพิ่มช่วงเลเวล "${val}" เรียบร้อยแล้ว`, 'success');
+              renderPage();
+            } else {
+              toast('มีช่วงเลเวลนี้อยู่แล้ว', 'info');
+            }
+          }}
+        ]
+      });
+    });
+
+    levelBar.querySelectorAll('.btn-del-level').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        if (!state.store.levelRanges) state.store.levelRanges = [...DEFAULT_STORE_CONFIG.levelRanges];
+        const removed = state.store.levelRanges.splice(idx, 1);
+        try { localStorage.setItem('haypos_store_settings', JSON.stringify(state.store)); } catch (e) {}
+        syncStoreSettingsAcrossDevices();
+        toast(`ลบช่วงเลเวล ${removed[0]} แล้ว`, 'info');
+        renderPage();
+      });
+    });
 
     // Products table list under categories
     const prodTableCard = el(`
@@ -5089,8 +5275,11 @@
     let currentReceiptFooterType = state.store.receiptFooterType === 'qr' ? 'image' : (state.store.receiptFooterType || 'image');
     let currentReceiptFooterImage = state.store.receiptFooterImage || '';
     let currentQrPaymentImage = state.store.qr_image_url || '';
+    let currentHomeMascotImage = state.store.homeMascotImage || '';
     let currentHighlights = JSON.parse(JSON.stringify(state.store.highlights || DEFAULT_STORE_CONFIG.highlights));
     let currentPaymentAccounts = JSON.parse(JSON.stringify(state.store.payment_accounts || DEFAULT_STORE_CONFIG.payment_accounts));
+    let currentContactChannels = JSON.parse(JSON.stringify(state.store.contactChannels || DEFAULT_STORE_CONFIG.contactChannels));
+    let currentCategoryPricing = JSON.parse(JSON.stringify(state.store.categoryPricing || DEFAULT_STORE_CONFIG.categoryPricing));
 
     const formWrap = el(`
       <div style="display:flex; flex-direction:column; gap:20px;">
@@ -5227,6 +5416,103 @@
                 <div style="padding:6px 8px; font-size:11.5px; font-weight:700; color:var(--accent-text);">Slide #${idx + 1}</div>
               </div>
             `).join('')}
+          </div>
+        </div>
+
+        <!-- SECTION 4.5: Marquee Announcement Bar (Requirement 4) -->
+        <div class="card">
+          <div class="card-title">Top Marquee Announcement Bar (ข้อความวิ่งประกาศแถบขาวด้านบนหน้าร้าน)</div>
+          <div class="card-sub">เปลี่ยนช่องค้นหาด้านบนหน้าร้านให้เป็นข้อความประกาศวิ่ง พร้อมไอคอน/อิโมจิที่ปรับแต่งได้</div>
+          <div class="grid" style="grid-template-columns: 140px 1fr; gap:12px; margin-top:12px; align-items:flex-end;">
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:12px; font-weight:700;">อิโมจิ / ไอคอน</label>
+              <input class="input" id="setAnnouncementIcon" value="${escapeHTML(state.store.announcementIcon || '📢')}" style="text-align:center; font-size:18px;" />
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:12px; font-weight:700;">ข้อความประกาศวิ่ง (Announcement Text)</label>
+              <input class="input" id="setAnnouncementText" value="${escapeHTML(state.store.announcementText || 'ยินดีต้อนรับสู่ BNC HayMate · สินค้าพร้อมส่งทุกวัน ทักไลน์สอบถามคิวได้ตลอด 24 ชม.')}" />
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4.6: Shop Mascot & Dynamic Contact Channels (Requirement 7) -->
+        <div class="card">
+          <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+            <div>
+              <div class="card-title">Shop Mascot &amp; Contact Channels (มาสคอตร้าน &amp; ช่องทางการติดต่อหน้า Home)</div>
+              <div class="card-sub">ปรับแต่งรูปภาพมาสคอตวงกลม ข้อความด้านบน-ล่าง และเพิ่ม/ลบปุ่มช่องทางติดต่อ (เช่น Line OA, Facebook, IG)</div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="btnAddContactChannel" style="font-weight:700;">+ เพิ่มช่องทางติดต่อใหม่</button>
+          </div>
+
+          <!-- Mascot Customizer -->
+          <div style="background:var(--primary-50); padding:14px; border-radius:14px; border:1px solid var(--border); margin-top:10px; margin-bottom:14px;">
+            <div style="font-weight:700; font-size:13.5px; margin-bottom:8px; color:var(--text);">รูปภาพมาสคอตร้าน (Mascot Avatar Circle)</div>
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+              <div style="width:54px; height:54px; border-radius:50%; overflow:hidden; border:2px dashed var(--primary-600); background:var(--card); display:grid; place-items:center; flex:none;">
+                <img id="homeMascotImgPreview" src="${escapeHTML(currentHomeMascotImage)}" style="width:100%; height:100%; object-fit:cover; display:${currentHomeMascotImage ? 'block' : 'none'};" onerror="this.style.display='none';" />
+                <span id="homeMascotImgFallback" style="font-size:22px; display:${currentHomeMascotImage ? 'none' : 'block'};">${escapeHTML(state.store.homeMascotEmoji || '🌸')}</span>
+              </div>
+              <div style="flex:1;">
+                <input type="file" id="fileHomeMascot" accept="image/*" style="display:none;" />
+                <div class="flex gap-2">
+                  <button type="button" class="btn btn-sm" id="btnUploadHomeMascot" style="font-size:11.5px; padding:5px 12px; font-weight:700;">อัปโหลดรูปมาสคอต (วงกลม)</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnClearHomeMascot" style="font-size:11.5px; padding:5px 8px; color:var(--danger); display:${currentHomeMascotImage ? 'inline-block' : 'none'};">ลบรูป</button>
+                </div>
+                <input class="input" id="setHomeMascotImgUrl" value="${escapeHTML(currentHomeMascotImage)}" placeholder="หรือวาง URL รูปภาพมาสคอต" style="font-size:12px; margin-top:6px;" />
+              </div>
+            </div>
+            <div class="grid" style="grid-template-columns: 140px 1fr 1fr; gap:10px;">
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11.5px;">อิโมจิสำรอง</label>
+                <input class="input" id="setHomeMascotEmoji" value="${escapeHTML(state.store.homeMascotEmoji || '🌸')}" style="text-align:center; font-size:16px;" />
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11.5px;">ข้อความบรรทัดบน (Top Text)</label>
+                <input class="input" id="setHomeContactTop" value="${escapeHTML(state.store.homeContactTopText || 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์')}" />
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11.5px;">ข้อความบรรทัดล่าง (Bottom Text)</label>
+                <input class="input" id="setHomeContactBottom" value="${escapeHTML(state.store.homeContactBottomText || 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.')}" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Contact Channels List -->
+          <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text);">รายการปุ่มช่องทางติดต่อ (${currentContactChannels.length} ช่องทาง)</div>
+          <div id="contactChannelsSettingsList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <!-- SECTION 4.7: Category Step & Tiered Pricing Settings (Requirement 3) -->
+        <div class="card">
+          <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+            <div>
+              <div class="card-title">Category Tiered &amp; Step Pricing (การตั้งราคาขายส่งตามจำนวนและหมวดหมู่)</div>
+              <div class="card-sub">ตั้งค่าจำนวนชิ้น (เช่น 5, 10, 100) และราคาเหมาตามแต่ละหมวดหมู่ (ดึงหมวดหมู่อัตโนมัติจาก Categories)</div>
+            </div>
+            <div class="flex gap-2 items-center">
+              <select class="select" id="tierCatSelect" style="font-weight:700; min-width:160px;">
+                ${CATEGORIES.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" id="btnAddTierBtn" style="font-weight:700;">+ เพิ่มสเต็ปราคาใหม่</button>
+            </div>
+          </div>
+          <div id="tierPricingContainer" style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:14px; padding:14px;"></div>
+        </div>
+
+        <!-- SECTION 4.8: Order Tracking Queue Step 3 Contact Settings (Requirement 1) -->
+        <div class="card">
+          <div class="card-title">Order Tracking Step 3: Queue &amp; Store Contact (ปุ่มส่งรหัสออเดอร์ในหน้า Tracking)</div>
+          <div class="card-sub">ตั้งค่าข้อความบนปุ่มและลิงก์ช่องทางติดต่อ (เช่น Line OA) เมื่อลูกค้าถึงขั้นตอน You're in queue</div>
+          <div class="grid" style="grid-template-columns: 1fr 1fr; gap:14px; margin-top:12px;">
+            <div class="field">
+              <label>ข้อความบนปุ่มติดต่อ (Contact Button Label)</label>
+              <input class="input" id="setTrackingContactLabel" value="${escapeHTML(state.store.trackingContactLabel || '💬 ทักแชทแจ้งออเดอร์ (Line OA)')}" />
+            </div>
+            <div class="field">
+              <label>ลิงก์ติดต่อร้าน (Contact Link / URL)</label>
+              <input class="input" id="setTrackingContactUrl" value="${escapeHTML(state.store.trackingContactUrl || 'https://line.me/R/ti/p/@bnchaymate')}" placeholder="เช่น https://line.me/R/ti/p/@bnchaymate หรือ https://m.me/..." />
+            </div>
           </div>
         </div>
 
@@ -6387,6 +6673,202 @@
       state.store = prevStoreConfig;
     });
 
+    // Home Mascot Image Uploader Handlers (Requirement 7)
+    const fileHomeMascot = formWrap.querySelector('#fileHomeMascot');
+    const btnUploadHomeMascot = formWrap.querySelector('#btnUploadHomeMascot');
+    const btnClearHomeMascot = formWrap.querySelector('#btnClearHomeMascot');
+    const homeMascotImgPreview = formWrap.querySelector('#homeMascotImgPreview');
+    const homeMascotImgFallback = formWrap.querySelector('#homeMascotImgFallback');
+    const homeMascotUrlInp = formWrap.querySelector('#setHomeMascotImgUrl');
+
+    btnUploadHomeMascot?.addEventListener('click', () => fileHomeMascot?.click());
+    fileHomeMascot?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const publicUrl = await uploadProductImage(file);
+        currentHomeMascotImage = publicUrl;
+        if (homeMascotImgPreview) {
+          homeMascotImgPreview.src = currentHomeMascotImage;
+          homeMascotImgPreview.style.display = 'block';
+        }
+        if (homeMascotImgFallback) homeMascotImgFallback.style.display = 'none';
+        if (btnClearHomeMascot) btnClearHomeMascot.style.display = 'inline-block';
+        if (homeMascotUrlInp) homeMascotUrlInp.value = currentHomeMascotImage;
+        toast('อัปโหลดรูปภาพมาสคอตร้านเรียบร้อย', 'success');
+      } catch (err) {
+        toast('อัปโหลดไม่สำเร็จ: ' + (err.message || err), 'error');
+      }
+    });
+
+    homeMascotUrlInp?.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      currentHomeMascotImage = val;
+      if (homeMascotImgPreview) {
+        homeMascotImgPreview.src = val;
+        homeMascotImgPreview.style.display = val ? 'block' : 'none';
+      }
+      if (homeMascotImgFallback) homeMascotImgFallback.style.display = val ? 'none' : 'block';
+      if (btnClearHomeMascot) btnClearHomeMascot.style.display = val ? 'inline-block' : 'none';
+    });
+
+    btnClearHomeMascot?.addEventListener('click', () => {
+      currentHomeMascotImage = '';
+      if (homeMascotUrlInp) homeMascotUrlInp.value = '';
+      if (homeMascotImgPreview) homeMascotImgPreview.style.display = 'none';
+      if (homeMascotImgFallback) homeMascotImgFallback.style.display = 'block';
+      btnClearHomeMascot.style.display = 'none';
+      toast('ลบรูปภาพมาสคอตแล้ว', 'info');
+    });
+
+    // Contact Channels Dynamic List Renderer (Requirement 7)
+    const renderContactChannelsList = () => {
+      const listEl = formWrap.querySelector('#contactChannelsSettingsList');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      if (currentContactChannels.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align:center; padding:16px; background:var(--card); border:1.5px dashed var(--border); border-radius:12px; color:var(--muted); font-size:12.5px;">
+            ยังไม่มีปุ่มช่องทางติดต่อ กดปุ่ม <strong>+ เพิ่มช่องทางติดต่อใหม่</strong> ด้านบน
+          </div>
+        `;
+        return;
+      }
+
+      currentContactChannels.forEach((ch, idx) => {
+        const row = el(`
+          <div class="card" style="background:var(--card); border:1.5px solid var(--border); border-radius:14px; padding:12px 14px; margin:0;">
+            <div class="flex items-center" style="justify-content:space-between; margin-bottom:8px;">
+              <span style="font-size:12.5px; font-weight:800; color:var(--accent-text);">ช่องทาง #${idx + 1}</span>
+              <button type="button" class="btn btn-sm btn-ghost btn-del-ch" data-idx="${idx}" style="color:var(--danger); font-size:11.5px; padding:2px 6px; font-weight:700;">ลบ</button>
+            </div>
+            <div class="grid" style="grid-template-columns: 90px 1.2fr 2fr; gap:10px; align-items:flex-end;">
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11px; font-weight:700;">ไอคอน/อิโมจิ</label>
+                <input class="input ch-icon" value="${escapeHTML(ch.icon || '💬')}" style="padding:6px 8px; font-size:14px; text-align:center;" />
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11px; font-weight:700;">ชื่อปุ่ม (Label) *</label>
+                <input class="input ch-name" value="${escapeHTML(ch.name || '')}" placeholder="เช่น Line OA, Facebook" style="padding:6px 10px; font-size:12px;" />
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11px; font-weight:700;">ลิงก์ URL *</label>
+                <input class="input ch-link" value="${escapeHTML(ch.link || '')}" placeholder="เช่น https://line.me/... หรือ https://facebook.com/..." style="padding:6px 10px; font-size:12px;" />
+              </div>
+            </div>
+          </div>
+        `);
+
+        row.querySelector('.ch-icon')?.addEventListener('input', (e) => { ch.icon = e.target.value; });
+        row.querySelector('.ch-name')?.addEventListener('input', (e) => { ch.name = e.target.value; });
+        row.querySelector('.ch-link')?.addEventListener('input', (e) => { ch.link = e.target.value; });
+        row.querySelector('.btn-del-ch')?.addEventListener('click', () => {
+          currentContactChannels.splice(idx, 1);
+          renderContactChannelsList();
+          toast('ลบช่องทางติดต่อแล้ว', 'info');
+        });
+
+        listEl.appendChild(row);
+      });
+    };
+
+    renderContactChannelsList();
+
+    formWrap.querySelector('#btnAddContactChannel')?.addEventListener('click', () => {
+      currentContactChannels.push({
+        id: Date.now(),
+        name: 'Line OA',
+        icon: '💬',
+        image: '',
+        link: 'https://line.me'
+      });
+      renderContactChannelsList();
+      toast('เพิ่มช่องทางติดต่อใหม่แล้ว', 'success');
+    });
+
+    // Category Tiered Pricing Manager (Requirement 3)
+    const tierCatSelect = formWrap.querySelector('#tierCatSelect');
+    const tierContainer = formWrap.querySelector('#tierPricingContainer');
+
+    const renderTierPricingForCategory = () => {
+      if (!tierCatSelect || !tierContainer) return;
+      const cat = tierCatSelect.value;
+      const tiers = currentCategoryPricing[cat] || [];
+
+      tierContainer.innerHTML = `
+        <div style="font-weight:800; font-size:13.5px; color:var(--accent-text); margin-bottom:8px;">
+          สเต็ปราคาของหมวดหมู่: <span style="color:var(--text);">${escapeHTML(cat)}</span> (${tiers.length} สเต็ป)
+        </div>
+        ${tiers.length === 0 ? `
+          <div style="text-align:center; padding:16px; background:var(--card); border:1.5px dashed var(--border); border-radius:12px; color:var(--muted); font-size:12.5px;">
+            หมวดหมู่นี้ยังไม่มีสเต็ปราคายกแพ็ค (ระบบจะคำนวณตามราคาต่อชิ้นปกติ) กดปุ่ม <strong>+ เพิ่มสเต็ปราคาใหม่</strong> ด้านบนเพื่อสร้าง
+          </div>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${tiers.map((t, idx) => `
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 12px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-size:12.5px; font-weight:700; color:var(--muted);">สเต็ป ${idx + 1}:</span>
+                  <span style="font-weight:800; font-size:14px; color:var(--text);">${t.qty} ชิ้น</span>
+                  <span style="font-size:12px; color:var(--muted);">➔</span>
+                  <span style="font-weight:800; font-size:14px; color:var(--accent-text);">${money(t.price)}</span>
+                  <span style="font-size:11.5px; color:var(--muted);">(เฉลี่ย ${money(t.price / t.qty)}/ชิ้น)</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-ghost btn-del-tier" data-idx="${idx}" style="color:var(--danger); font-size:12px; padding:2px 6px;">✕ ลบ</button>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      `;
+
+      tierContainer.querySelectorAll('.btn-del-tier').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          tiers.splice(idx, 1);
+          currentCategoryPricing[cat] = tiers;
+          renderTierPricingForCategory();
+          toast('ลบสเต็ปราคาเรียบร้อย', 'info');
+        });
+      });
+    };
+
+    tierCatSelect?.addEventListener('change', renderTierPricingForCategory);
+    renderTierPricingForCategory();
+
+    formWrap.querySelector('#btnAddTierBtn')?.addEventListener('click', () => {
+      const cat = tierCatSelect?.value;
+      if (!cat) return;
+      openModal({
+        title: `เพิ่มสเต็ปราคาสำหรับหมวดหมู่ "${cat}"`,
+        body: `
+          <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="field">
+              <label>จำนวนชิ้น (Quantity) *</label>
+              <input class="input" type="number" id="tierQtyInput" placeholder="เช่น 5, 10, 100" min="1" />
+            </div>
+            <div class="field">
+              <label>ราคารวมสำหรับจำนวนนี้ (Price) *</label>
+              <input class="input" type="number" id="tierPriceInput" placeholder="เช่น 10, 18, 70" min="0" step="0.1" />
+            </div>
+          </div>
+        `,
+        actions: [
+          { label: 'Cancel', kind: 'ghost' },
+          { label: 'บันทึกสเต็ปราคา', kind: 'primary', onClick: () => {
+            const qty = parseInt($('#tierQtyInput')?.value, 10);
+            const price = parseFloat($('#tierPriceInput')?.value);
+            if (!qty || isNaN(price)) return toast('กรุณากรอกจำนวนและราคาให้ถูกต้อง', 'error');
+            if (!currentCategoryPricing[cat]) currentCategoryPricing[cat] = [];
+            currentCategoryPricing[cat].push({ qty, price });
+            currentCategoryPricing[cat].sort((a, b) => a.qty - b.qty);
+            renderTierPricingForCategory();
+            toast(`เพิ่มสเต็ป ${qty} ชิ้น = ${money(price)} ในหมวดหมู่ ${cat} แล้ว`, 'success');
+          }}
+        ]
+      });
+    });
+
     // Bind save actions
     const doSave = () => {
       state.store.brandLogoType = currentBrandLogoType;
@@ -6401,6 +6883,24 @@
       state.store.heroIconType = heroIconType;
       state.store.heroEmoji = formWrap.querySelector('#setHeroEmoji')?.value.trim() || '';
       state.store.heroImage = (heroImage && !heroImage.startsWith('(Uploaded')) ? heroImage : (heroUrlInp?.value && heroUrlInp.value !== '(Uploaded Photo)' && heroUrlInp.value.startsWith('http') ? heroUrlInp.value : heroImage);
+
+      // Save Marquee Announcement (Requirement 4)
+      state.store.announcementIcon = formWrap.querySelector('#setAnnouncementIcon')?.value.trim() || '📢';
+      state.store.announcementText = formWrap.querySelector('#setAnnouncementText')?.value.trim() || '';
+
+      // Save Home Mascot & Contact Channels (Requirement 7)
+      state.store.homeMascotImage = currentHomeMascotImage;
+      state.store.homeMascotEmoji = formWrap.querySelector('#setHomeMascotEmoji')?.value.trim() || '🌸';
+      state.store.homeContactTopText = formWrap.querySelector('#setHomeContactTop')?.value.trim() || 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์';
+      state.store.homeContactBottomText = formWrap.querySelector('#setHomeContactBottom')?.value.trim() || 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.';
+      state.store.contactChannels = currentContactChannels;
+
+      // Save Category Step & Tier Pricing (Requirement 3)
+      state.store.categoryPricing = currentCategoryPricing;
+
+      // Save Order Tracking Step 3 Contact (Requirement 1)
+      state.store.trackingContactLabel = formWrap.querySelector('#setTrackingContactLabel')?.value.trim() || '💬 ทักแชทแจ้งออเดอร์ (Line OA)';
+      state.store.trackingContactUrl = formWrap.querySelector('#setTrackingContactUrl')?.value.trim() || 'https://line.me/R/ti/p/@bnchaymate';
 
       // Save Review Celebration Popup Settings
       state.store.reviewPopupTitle = formWrap.querySelector('#setReviewPopupTitle')?.value.trim() || 'Thank You';
@@ -6903,7 +7403,7 @@
       const totalQty = Object.values(state.selected).reduce((a, b) => a + Number(b || 0), 0);
       const totalPrice = Object.entries(state.selected).reduce((sum, [id, q]) => {
         const p = PRODUCTS.find(x => String(x.id) === String(id));
-        return sum + (p ? Number(p.price) * Number(q) : 0);
+        return sum + (p ? getItemPrice(p, q) : 0);
       }, 0);
 
       // Only show floating button on Store page when actively viewing 'products' tab and items > 0
@@ -7057,6 +7557,32 @@
           drawStore('products');
         });
 
+        // 2.5 Mascot & Contact Channels Section (Home Page)
+        const mascotImg = state.store.homeMascotImage || '';
+        const mascotEmoji = state.store.homeMascotEmoji || '🌸';
+        const contactTop = state.store.homeContactTopText || 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์';
+        const contactBottom = state.store.homeContactBottomText || 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.';
+        const channels = (state.store.contactChannels && state.store.contactChannels.length) ? state.store.contactChannels : DEFAULT_STORE_CONFIG.contactChannels;
+
+        const mascotContactEl = el(`
+          <div class="home-mascot-contact-card">
+            <div class="mascot-avatar-circle" title="Shop Mascot">
+              ${mascotImg ? `<img src="${escapeHTML(mascotImg)}" alt="Shop Mascot" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(mascotEmoji)}</span>` : `<span>${escapeHTML(mascotEmoji)}</span>`}
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <div style="font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:2px;">${escapeHTML(contactTop)}</div>
+              <div class="contact-channels-wrap">
+                ${channels.map(ch => {
+                  const chIcon = ch.image ? `<img src="${escapeHTML(ch.image)}" alt="" onerror="this.style.display='none';" />` : (ch.icon ? `<span>${escapeHTML(ch.icon)}</span>` : '');
+                  return `<a href="${escapeHTML(ch.link || '#')}" target="_blank" rel="noopener noreferrer" class="btn-contact-channel">${chIcon}<span>${escapeHTML(ch.name || 'ติดต่อร้าน')}</span></a>`;
+                }).join('')}
+              </div>
+              <div style="font-size:11px; color:var(--muted); font-weight:500; margin-top:2px;">${escapeHTML(contactBottom)}</div>
+            </div>
+          </div>
+        `);
+        view.appendChild(mascotContactEl);
+
         // 3. 4 Highlights & Popular Picks (Dynamic from state.store - supports Image or Emoji)
         const hList = (state.store.highlights && state.store.highlights.length) ? state.store.highlights : DEFAULT_STORE_CONFIG.highlights;
         view.appendChild(el(`
@@ -7097,7 +7623,7 @@
                       </div>
                       
                       <div style="flex:1; display:flex; flex-direction:column;">
-                        <div style="font-size:11px; color:var(--muted); font-weight:700;">${escapeHTML(p.cat || 'Bakery')}</div>
+                        <div style="font-size:11px; color:var(--muted); font-weight:700;">${escapeHTML(p.cat || 'Item')} · Lv.${p.level || 1}</div>
                         <div style="font-weight:800; font-size:14px; color:var(--text); line-height:1.3; margin:2px 0 4px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${escapeHTML(p.name)}</div>
                         ${p.flavor ? `<div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">${escapeHTML(p.flavor)}</div>` : ''}
                         
@@ -7214,16 +7740,56 @@
         reviewsSection.querySelector('#btnHomeWriteReview')?.addEventListener('click', () => openWriteReviewModal());
 
       } else if (key === 'products') {
+        const selectedCats = new Set();
+        const selectedLevels = new Set();
+        const levelOptions = (state.store.levelRanges && state.store.levelRanges.length) ? state.store.levelRanges : DEFAULT_STORE_CONFIG.levelRanges;
+
         const wrap = el(`
           <div class="card">
             <div class="flex items-center" style="justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">
               <div><div class="card-title">Menu &amp; Products</div><div class="card-sub">Tap item to add to cart</div></div>
-              <div class="flex gap-2" style="flex-wrap:wrap">
-                <div class="search-wrap" style="max-width:220px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg><input placeholder="Search..." id="storeSearch"/></div>
-                <select class="select" id="storeCat" style="width:auto">
-                  <option value="">All categories</option>
-                  ${CATEGORIES.map(c => `<option>${c.name}</option>`).join('')}
-                </select>
+              <div class="flex gap-2" style="flex-wrap:wrap; align-items:center;">
+                <div class="search-wrap" style="max-width:180px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg><input placeholder="Search..." id="storeSearch"/></div>
+
+                <!-- White-Pink Multi-Dropdown for Categories -->
+                <div class="multi-dropdown-wrap" id="multiCatWrap">
+                  <div class="multi-dropdown-trigger" id="multiCatTrigger">
+                    <span id="multiCatLabel">All categories</span>
+                    <span class="arrow-icon">▼</span>
+                  </div>
+                  <div class="multi-dropdown-menu" id="multiCatMenu">
+                    <div class="multi-dropdown-item" data-cat="__ALL__">
+                      <span class="circle-checkbox checked" id="chkCatAll">✓</span>
+                      <span>เลือกทั้งหมด (All categories)</span>
+                    </div>
+                    ${CATEGORIES.map(c => `
+                      <div class="multi-dropdown-item" data-cat="${escapeHTML(c.name)}">
+                        <span class="circle-checkbox checked" data-cat-chk="${escapeHTML(c.name)}">✓</span>
+                        <span>${escapeHTML(c.name)}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- White-Pink Multi-Dropdown for Level -->
+                <div class="multi-dropdown-wrap" id="multiLevelWrap">
+                  <div class="multi-dropdown-trigger" id="multiLevelTrigger">
+                    <span id="multiLevelLabel">All Levels</span>
+                    <span class="arrow-icon">▼</span>
+                  </div>
+                  <div class="multi-dropdown-menu" id="multiLevelMenu">
+                    <div class="multi-dropdown-item" data-level="__ALL__">
+                      <span class="circle-checkbox checked" id="chkLevelAll">✓</span>
+                      <span>ทุกเลเวล (All Levels)</span>
+                    </div>
+                    ${levelOptions.map(l => `
+                      <div class="multi-dropdown-item" data-level="${escapeHTML(l)}">
+                        <span class="circle-checkbox checked" data-level-chk="${escapeHTML(l)}">✓</span>
+                        <span>${escapeHTML(l)}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
               </div>
             </div>
             <div class="flex items-center" style="justify-content:space-between; margin-bottom:10px; color:var(--muted); font-size:12.5px">
@@ -7241,30 +7807,143 @@
         const countEl = wrap.querySelector('#storeCount');
         const cartInfo = wrap.querySelector('#storeCartInfo');
         const searchEl = wrap.querySelector('#storeSearch');
-        const catEl = wrap.querySelector('#storeCat');
+        const catTrigger = wrap.querySelector('#multiCatTrigger');
+        const catMenu = wrap.querySelector('#multiCatMenu');
+        const catLabel = wrap.querySelector('#multiCatLabel');
+        const levelTrigger = wrap.querySelector('#multiLevelTrigger');
+        const levelMenu = wrap.querySelector('#multiLevelMenu');
+        const levelLabel = wrap.querySelector('#multiLevelLabel');
+
         const PAGE = 160;
         let page = 1;
 
+        // Multi-dropdown toggle handlers
+        catTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          levelMenu.classList.remove('show');
+          levelTrigger.classList.remove('active');
+          catMenu.classList.toggle('show');
+          catTrigger.classList.toggle('active');
+        });
+
+        levelTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          catMenu.classList.remove('show');
+          catTrigger.classList.remove('active');
+          levelMenu.classList.toggle('show');
+          levelTrigger.classList.toggle('active');
+        });
+
+        const closeAllDropdowns = () => {
+          catMenu.classList.remove('show');
+          catTrigger.classList.remove('active');
+          levelMenu.classList.remove('show');
+          levelTrigger.classList.remove('active');
+        };
+        document.addEventListener('click', closeAllDropdowns);
+        catMenu.addEventListener('click', (e) => e.stopPropagation());
+        levelMenu.addEventListener('click', (e) => e.stopPropagation());
+
+        // Category multi-select handler
+        catMenu.querySelectorAll('.multi-dropdown-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const cat = item.dataset.cat;
+            if (cat === '__ALL__') {
+              selectedCats.clear();
+              catMenu.querySelectorAll('[data-cat-chk]').forEach(c => c.classList.add('checked'));
+              wrap.querySelector('#chkCatAll').classList.add('checked');
+              catLabel.textContent = 'All categories';
+            } else {
+              if (selectedCats.has(cat)) {
+                selectedCats.delete(cat);
+                item.querySelector('.circle-checkbox')?.classList.remove('checked');
+              } else {
+                selectedCats.add(cat);
+                item.querySelector('.circle-checkbox')?.classList.add('checked');
+              }
+              const allChecked = selectedCats.size === 0 || selectedCats.size === CATEGORIES.length;
+              wrap.querySelector('#chkCatAll').classList.toggle('checked', allChecked);
+              if (selectedCats.size === 0) {
+                catLabel.textContent = 'All categories';
+              } else if (selectedCats.size === 1) {
+                catLabel.textContent = Array.from(selectedCats)[0];
+              } else {
+                catLabel.textContent = `หมวดหมู่ (${selectedCats.size})`;
+              }
+            }
+            page = 1;
+            drawStoreGrid();
+          });
+        });
+
+        // Level multi-select handler
+        levelMenu.querySelectorAll('.multi-dropdown-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const lvl = item.dataset.level;
+            if (lvl === '__ALL__') {
+              selectedLevels.clear();
+              levelMenu.querySelectorAll('[data-level-chk]').forEach(c => c.classList.add('checked'));
+              wrap.querySelector('#chkLevelAll').classList.add('checked');
+              levelLabel.textContent = 'All Levels';
+            } else {
+              if (selectedLevels.has(lvl)) {
+                selectedLevels.delete(lvl);
+                item.querySelector('.circle-checkbox')?.classList.remove('checked');
+              } else {
+                selectedLevels.add(lvl);
+                item.querySelector('.circle-checkbox')?.classList.add('checked');
+              }
+              const allChecked = selectedLevels.size === 0 || selectedLevels.size === levelOptions.length;
+              wrap.querySelector('#chkLevelAll').classList.toggle('checked', allChecked);
+              if (selectedLevels.size === 0) {
+                levelLabel.textContent = 'All Levels';
+              } else if (selectedLevels.size === 1) {
+                levelLabel.textContent = Array.from(selectedLevels)[0];
+              } else {
+                levelLabel.textContent = `เลเวล (${selectedLevels.size})`;
+              }
+            }
+            page = 1;
+            drawStoreGrid();
+          });
+        });
+
+        function matchesLevelRange(level, rangeStr) {
+          const n = Number(level || 1);
+          const m = String(rangeStr).match(/(\d+)\s*-\s*(\d+)/);
+          if (m) return n >= parseInt(m[1], 10) && n <= parseInt(m[2], 10);
+          const mPlus = String(rangeStr).match(/(\d+)\+/);
+          if (mPlus) return n >= parseInt(mPlus[1], 10);
+          const mExact = String(rangeStr).match(/(\d+)/);
+          if (mExact) return n === parseInt(mExact[1], 10);
+          return true;
+        }
+
         function updateCartInfo() {
-          const totalQty = Object.values(state.selected).reduce((a,b)=>a+Number(b||0), 0);
+          const totalQty = Object.values(state.selected).reduce((a, b) => a + Number(b || 0), 0);
           const totalPrice = Object.entries(state.selected).reduce((sum, [id, q]) => {
             const p = PRODUCTS.find(x => String(x.id) === String(id));
-            return sum + (p ? p.price * Number(q) : 0);
+            return sum + (p ? getItemPrice(p, q) : 0);
           }, 0);
           cartInfo.innerHTML = totalQty
             ? `Cart: <strong style="color:var(--text)">${totalQty}</strong> items · <strong style="color:var(--accent-text)">${money(totalPrice)}</strong> (Go to Cart →)`
             : 'Cart is empty';
         }
         cartInfo.addEventListener('click', () => {
+          closeAllDropdowns();
           root.querySelectorAll('#storeTabs .tab').forEach(x => x.classList.remove('active'));
           root.querySelector('#storeTabs [data-s="cart"]')?.classList.add('active');
           drawStore('cart');
         });
 
         function drawStoreGrid() {
-          const q = searchEl.value.toLowerCase();
-          const cat = catEl.value;
-          const list = PRODUCTS.filter(p => (!q || p.name.toLowerCase().includes(q)) && (!cat || p.cat === cat));
+          const q = searchEl.value.toLowerCase().trim();
+          const list = PRODUCTS.filter(p => {
+            const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.cat && p.cat.toLowerCase().includes(q));
+            const matchesCat = selectedCats.size === 0 || selectedCats.has(p.cat);
+            const matchesLevel = selectedLevels.size === 0 || Array.from(selectedLevels).some(rng => matchesLevelRange(p.level || 1, rng));
+            return matchesSearch && matchesCat && matchesLevel;
+          });
           const totalPages = Math.max(1, Math.ceil(list.length / PAGE));
           if (page > totalPages) page = totalPages;
           const start = (page - 1) * PAGE;
@@ -7273,29 +7952,56 @@
             ? `Showing ${start + 1}–${Math.min(list.length, start + PAGE)} of ${list.length} products`
             : 'No products';
           grid.innerHTML = '';
+
           items.forEach(p => {
             const sInfo = getStockStatusInfo(p.stock);
             const stockCls = sInfo.dotClass;
             const qty = state.selected[p.id] || 0;
             const imgUrl = p.image || DEFAULT_PRODUCT_IMG;
             const mediaHtml = `<img src="${escapeHTML(imgUrl)}" alt="${escapeHTML(p.name)}" onerror="this.src='${DEFAULT_PRODUCT_IMG}';" />`;
+            const catTiers = state.store?.categoryPricing?.[p.cat] || [];
+
             const tile = el(`
-              <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · ${money(p.price)}">
+              <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · Lv.${p.level || 1} · ${money(p.price)}">
                 ${mediaHtml}
                 <span class="stock-dot"></span>
                 <span class="qty-badge">${qty}</span>
+                ${(catTiers && catTiers.length > 0) ? `
+                  <div class="tier-chips-wrap" style="position:absolute; bottom:2px; left:2px; right:2px; display:flex; justify-content:center; gap:2px; z-index:3;">
+                    ${catTiers.slice(0,3).map(t => `<button type="button" class="tier-chip-btn" data-tid="${p.id}" data-tqty="${t.qty}" title="${t.qty} ชิ้น ${money(t.price)}">+${t.qty}</button>`).join('')}
+                  </div>
+                ` : ''}
               </div>
             `);
-            tile.addEventListener('click', () => {
+
+            // Tile Click to increment
+            tile.addEventListener('click', (e) => {
+              if (e.target.closest('.tier-chip-btn')) return;
               if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
               state.selected[p.id] = (state.selected[p.id] || 0) + 1;
               tile.classList.add('selected');
               const badge = tile.querySelector('.qty-badge');
-              badge.textContent = state.selected[p.id];
-              badge.style.animation = 'none'; void badge.offsetWidth; badge.style.animation = '';
+              if (badge) badge.textContent = state.selected[p.id];
               updateCartInfo();
               updateFloatingCartBtn();
             });
+
+            // Quick tier buttons listener
+            tile.querySelectorAll('.tier-chip-btn').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
+                const addQty = Number(btn.dataset.tqty || 1);
+                state.selected[p.id] = (state.selected[p.id] || 0) + addQty;
+                tile.classList.add('selected');
+                const badge = tile.querySelector('.qty-badge');
+                if (badge) badge.textContent = state.selected[p.id];
+                toast(`เพิ่ม ${p.name} +${addQty} ชิ้นในตะกร้า`, 'success');
+                updateCartInfo();
+                updateFloatingCartBtn();
+              });
+            });
+
             tile.addEventListener('contextmenu', (e) => {
               e.preventDefault();
               if (!state.selected[p.id]) return;
@@ -7324,8 +8030,8 @@
             pager.appendChild(mk('›', page+1, {disabled: page===totalPages}));
           }
         }
+
         searchEl.addEventListener('input', () => { page = 1; drawStoreGrid(); });
-        catEl.addEventListener('change', () => { page = 1; drawStoreGrid(); });
         drawStoreGrid();
         updateCartInfo();
 
@@ -7335,7 +8041,7 @@
           return p ? { ...p, qty: q } : null;
         }).filter(Boolean);
 
-        const subtotal = cartEntries.reduce((s, i) => s + i.price * i.qty, 0);
+        const subtotal = cartEntries.reduce((s, i) => s + getItemPrice(i, i.qty), 0);
         const discount = calculatePromoDiscount(state.appliedPromo, subtotal);
         const total = Math.max(0, subtotal - discount);
         const activePromos = PROMOTIONS.filter(p => p.status === 'active');
@@ -7352,23 +8058,27 @@
                       const thumbHtml = p.image
                         ? `<img src="${escapeHTML(p.image)}" alt="${escapeHTML(p.name)}" style="width:52px;height:52px;object-fit:cover;border-radius:12px;" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='grid';" /><div style="display:none;width:52px;height:52px;place-items:center;font-size:12px;font-weight:700;border-radius:12px;background:var(--primary-50);color:var(--accent-text);">${escapeHTML(p.cat || 'Item')}</div>`
                         : `<div style="width:52px;height:52px;display:grid;place-items:center;font-size:12px;font-weight:700;border-radius:12px;background:var(--primary-50);color:var(--accent-text);">${escapeHTML(p.cat || 'Item')}</div>`;
+                      const linePrice = getItemPrice(p, p.qty);
                       return `
                         <div class="flex items-center gap-3" style="padding:10px; border:1px solid var(--border); border-radius:12px">
                           ${thumbHtml}
-                          <div style="flex:1"><div style="font-weight:600">${escapeHTML(p.name)}</div><div style="font-size:12px; color:var(--muted)">${p.cat} · ${money(p.price)}</div></div>
+                          <div style="flex:1">
+                            <div style="font-weight:600">${escapeHTML(p.name)}</div>
+                            <div style="font-size:12px; color:var(--muted)">${escapeHTML(p.cat || '')} · Lv.${p.level || 1} · ${money(p.price)}/ea</div>
+                          </div>
                           <div class="flex items-center gap-2">
                             <button class="btn btn-sm btn-cart-minus" data-id="${p.id}">−</button>
-                            <span style="font-weight:600">${p.qty}</span>
+                            <span style="font-weight:600; min-width:20px; text-align:center;">${p.qty}</span>
                             <button class="btn btn-sm btn-cart-plus" data-id="${p.id}">+</button>
                           </div>
-                          <div style="font-weight:700; width:70px; text-align:right">${money(p.price * p.qty)}</div>
+                          <div style="font-weight:700; width:75px; text-align:right; color:var(--accent-text);">${money(linePrice)}</div>
                         </div>`;
                     }).join('')}
                   </div>
                 `}
               </div>
 
-              <!-- Promo Code / Coupon Section in Cart (No Emojis) -->
+              <!-- Promo Code Section in Cart -->
               ${cartEntries.length > 0 ? `
                 <div class="card" style="margin-top:14px;">
                   <div class="card-title" style="font-size:14.5px;">
@@ -7394,7 +8104,6 @@
                     </div>
                   ` : ''}
 
-                  <!-- Active Promotion Quick Tags (No Emojis) -->
                   <div style="margin-top:12px;">
                     <div style="font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;">โปรโมชั่นแนะนำ (คลิกเพื่อใช้โค้ด):</div>
                     <div style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -7421,7 +8130,7 @@
         `);
         view.appendChild(cartWrap);
 
-        // Cart item plus / minus event listeners
+        // Cart item plus / minus listeners
         cartWrap.querySelectorAll('.btn-cart-minus').forEach(btn => {
           btn.addEventListener('click', () => {
             const pid = btn.dataset.id;
@@ -7449,10 +8158,7 @@
 
         const doApplyPromoCode = (rawCode) => {
           const code = (rawCode || '').trim().toUpperCase();
-          if (!code) {
-            toast('โปรดกรอกรหัสโค้ดส่วนลด', 'error');
-            return;
-          }
+          if (!code) return toast('โปรดกรอกรหัสโค้ดส่วนลด', 'error');
           const matched = PROMOTIONS.find(p => p.code.toUpperCase() === code && p.status === 'active')
             || PROMOTIONS.find(p => p.code.toUpperCase() === code);
           if (matched) {
@@ -7465,18 +8171,8 @@
         };
 
         btnApply?.addEventListener('click', () => doApplyPromoCode(promoInput?.value));
-        promoInput?.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            doApplyPromoCode(promoInput?.value);
-          }
-        });
-
-        btnRemove?.addEventListener('click', () => {
-          state.appliedPromo = null;
-          toast('ยกเลิกโค้ดส่วนลดแล้ว', 'info');
-          drawStore('cart');
-        });
+        promoInput?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doApplyPromoCode(promoInput?.value); } });
+        btnRemove?.addEventListener('click', () => { state.appliedPromo = null; toast('ยกเลิกโค้ดส่วนลดแล้ว', 'info'); drawStore('cart'); });
 
         cartWrap.querySelectorAll('.btn-promo-tag').forEach(tag => {
           tag.addEventListener('click', () => {
@@ -7497,7 +8193,7 @@
           const p = PRODUCTS.find(x => String(x.id) === String(id));
           return p ? { ...p, qty: q } : null;
         }).filter(Boolean);
-        const subtotal = cartEntries.reduce((s, i) => s + i.price * i.qty, 0);
+        const subtotal = cartEntries.reduce((s, i) => s + getItemPrice(i, i.qty), 0);
         const discount = calculatePromoDiscount(state.appliedPromo, subtotal);
         const total = Math.max(0, subtotal - discount);
 
@@ -7533,15 +8229,15 @@
               <div class="card-title">Payment Transfer</div>
               <div class="card-sub">สแกน QR หรือโอนผ่านบัญชีธนาคาร/วอลเล็ท</div>
               
-              <!-- QR Code Preview -->
-              <div class="file-preview" style="aspect-ratio:auto; padding:14px; margin-top:8px; text-align:center; background:var(--card); border:1.5px solid var(--border); border-radius:14px;">
+              <!-- 1:1 Large QR Code Preview (Requirement 6) -->
+              <div class="checkout-qr-box" title="สแกนจ่ายเงินผ่าน PromptPay QR">
                 ${state.store.qr_image_url
-                  ? `<img src="${escapeHTML(state.store.qr_image_url)}" alt="PromptPay QR" style="width:140px; height:140px; object-fit:contain; border-radius:10px; margin:0 auto 6px; display:block; box-shadow:var(--shadow-soft);" onerror="this.style.display='none';" />`
-                  : `<div class="qr" style="width:90px; height:90px; margin:0 auto 6px;"></div>`}
-                <div style="font-size:12px; font-weight:800; color:var(--accent-text);">PromptPay QR Code (สแกนจ่ายเงิน)</div>
+                  ? `<img src="${escapeHTML(state.store.qr_image_url)}" alt="PromptPay QR" onerror="this.style.display='none';" />`
+                  : `<div class="qr" style="width:160px; height:160px; margin:auto;"></div>`}
               </div>
+              <div style="font-size:12.5px; font-weight:800; color:var(--accent-text); text-align:center; margin-bottom:10px;">PromptPay QR Code (สแกนจ่ายเงิน)</div>
 
-              <!-- Bank & Wallet Transfer Details with Copy Buttons (Dynamic List from Settings) -->
+              <!-- Bank & Wallet Transfer Details -->
               <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
                 ${(state.store.payment_accounts && state.store.payment_accounts.length > 0 ? state.store.payment_accounts : DEFAULT_STORE_CONFIG.payment_accounts).map(acc => {
                   const accIconHtml = acc.image
@@ -7591,7 +8287,7 @@
           </div>
         `));
 
-        // Preserve input fields real-time
+        // Preserve input fields
         const coNameEl = view.querySelector('#coName');
         const coFarmNameEl = view.querySelector('#coFarmName');
         const coFarmTagEl = view.querySelector('#coFarmTag');
@@ -7677,36 +8373,48 @@
         });
 
         view.querySelector('#confirmPay').addEventListener('click', async () => {
-          // Check if slip is attached
+          const name = coNameEl?.value.trim() || 'Guest Customer';
+          const farmName = coFarmNameEl?.value.trim() || '';
+          const farmTag = coFarmTagEl?.value.trim() || '';
+          const contact = coContactEl?.value.trim() || '';
+
+          if (!contact) {
+            toast('กรุณากรอกช่องทางการติดต่อ (เบอร์โทร หรือ Line ID)', 'error');
+            coContactEl?.focus();
+            return;
+          }
           if (!uploadedSlipData) {
             slipDropzone.style.borderColor = 'var(--danger)';
             slipDropzone.style.background = '#FFF0F2';
             slipDropzone.style.animation = 'pinShake .35s ease';
             setTimeout(() => { slipDropzone.style.animation = ''; }, 400);
-            toast('เช็คเอาท์ไม่ได้: โปรดแนบสลิปหลักฐานการโอนเงินก่อนสั่งซื้อ', 'error');
+            toast('กรุณาแนบสลิปหลักฐานการโอนเงินก่อนยืนยันคำสั่งซื้อ', 'error');
             slipDropzone.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
           }
 
-          const name = $('#coName')?.value.trim() || 'Anna Wong';
-          const farmName = $('#coFarmName')?.value.trim() || '';
-          const farmTag = $('#coFarmTag')?.value.trim() || '';
-          const contact = $('#coContact')?.value.trim() || '';
-          const newOrderNumber = 'HP-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random()*900);
-
-          const selectedItemsList = Object.entries(state.selected).map(([pid, q]) => {
-            const p = PRODUCTS.find(x => String(x.id) === String(pid));
+          const selectedItemsList = Object.entries(state.selected).map(([id, q]) => {
+            const p = PRODUCTS.find(x => String(x.id) === String(id));
+            if (!p) return null;
+            const linePrice = getItemPrice(p, q);
             return {
-              id: pid,
-              name: p ? p.name : 'Product',
-              price: Number(p ? p.price : 0),
+              id: p.id,
+              name: p.name,
+              cat: p.cat,
+              level: p.level || 1,
+              price: Number(p.price || 0),
               qty: Number(q),
-              subtotal: Number((p ? p.price : 0) * Number(q)),
-              image: p ? (p.image || '') : '',
-              cat: p ? (p.cat || 'Bakery') : 'Bakery'
+              subtotal: linePrice,
+              image: p.image || ''
             };
-          });
+          }).filter(Boolean);
 
+          if (!selectedItemsList.length) {
+            toast('ไม่มีสินค้าในตะกร้า', 'error');
+            return;
+          }
+
+          const newOrderNumber = 'HP-' + Date.now().toString().slice(-6) + '-' + Math.floor(100 + Math.random() * 900);
           const totalItemsCount = selectedItemsList.reduce((sum, it) => sum + it.qty, 0);
 
           const newOrder = {
@@ -7716,35 +8424,35 @@
             farm_tag: farmTag,
             contact: contact,
             date: new Date().toISOString().split('T')[0],
-            items: totalItemsCount || 1,
+            time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+            items: totalItemsCount,
             items_data: selectedItemsList,
-            subtotal: subtotal,
-            discount: discount,
-            promo_code: state.appliedPromo ? state.appliedPromo.code : '',
+            subtotal: Number(subtotal),
+            discount: Number(discount),
+            promo_code: state.appliedPromo?.code || null,
             delivery: 0,
             total: Number(total),
             status: 'waiting',
-            slip_url: uploadedSlipData || ''
+            slip_url: uploadedSlipData
           };
+
           ORDERS.unshift(newOrder);
           persistOrders();
 
-          // Reset checkout form state
+          // Reset checkout form
           state.checkoutForm = { name: '', farmName: '', farmTag: '', contact: '', uploadedSlipData: '' };
 
-          // Update Customer records locally
-          const custEmail = (contact && contact.includes('@')) ? contact : `${(name || 'customer').toLowerCase().replace(/\s+/g, '')}@customer.com`;
-          const custPhone = (contact && !contact.includes('@')) ? contact : '';
-          const cIdx = CUSTOMERS.findIndex(c => c.name.toLowerCase() === name.toLowerCase() || (custEmail && c.email.toLowerCase() === custEmail.toLowerCase()));
-          let currentCustObj = null;
-          if (cIdx !== -1) {
-            CUSTOMERS[cIdx].orders = (CUSTOMERS[cIdx].orders || 0) + 1;
-            CUSTOMERS[cIdx].spend = (CUSTOMERS[cIdx].spend || 0) + Number(total);
-            if (farmName && !CUSTOMERS[cIdx].address) CUSTOMERS[cIdx].address = farmName;
-            if (farmTag && !CUSTOMERS[cIdx].tag) CUSTOMERS[cIdx].tag = farmTag;
-            currentCustObj = CUSTOMERS[cIdx];
+          // Customer Record
+          const custEmail = contact.includes('@') ? contact : `${name.toLowerCase().replace(/\s+/g, '') || 'guest'}@hayfarm.com`;
+          const custPhone = contact.replace(/\D/g, '').length >= 9 ? contact : '';
+          let currentCustObj = CUSTOMERS.find(c => c.name.toLowerCase() === name.toLowerCase());
+          if (currentCustObj) {
+            currentCustObj.orders = (currentCustObj.orders || 1) + 1;
+            currentCustObj.spend = (currentCustObj.spend || 0) + Number(total);
+            if (farmName) currentCustObj.address = [farmName, farmTag].filter(Boolean).join(' · ');
           } else {
             currentCustObj = {
+              id: 'CUST-' + (CUSTOMERS.length + 1).toString().padStart(3, '0'),
               name: name,
               email: custEmail,
               phone: custPhone,
@@ -7756,10 +8464,8 @@
             CUSTOMERS.unshift(currentCustObj);
           }
           persistCustomers();
-
           notifyNewOrder(newOrder);
 
-          // 1. Instant Real-time WebSocket Broadcast to Admin and all connected devices
           if (syncChannel) {
             try {
               syncChannel.send({
@@ -7767,12 +8473,9 @@
                 event: 'new_order',
                 payload: { order: newOrder, customer: currentCustObj }
               });
-            } catch (e) {
-              console.warn('Sync broadcast new_order notice:', e);
-            }
+            } catch (e) {}
           }
 
-          // 2. Persist to Supabase Database table 'customers', 'orders' & 'order_items'
           if (supabase) {
             try {
               let customerDbId = null;
@@ -7785,12 +8488,8 @@
                   address: farmName || null,
                   tag: (farmTag && ['VIP', 'Regular', 'New'].includes(farmTag)) ? farmTag : 'New'
                 }).select().single();
-                if (custData) {
-                  customerDbId = custData.id;
-                }
-              } catch (e) {
-                console.warn('Customer Supabase insert notice:', e);
-              }
+                if (custData) customerDbId = custData.id;
+              } catch (e) {}
 
               const noteMeta = `Customer: ${name} | Farm: ${farmName} | Tag: ${farmTag} | Contact: ${contact} | Promo: ${state.appliedPromo?.code || '-'} | Slip: ${uploadedSlipData || ''}`;
               const { data: insertedOrder, error: ordErr } = await supabase.from('orders').insert({
@@ -7818,15 +8517,10 @@
                 if (itemRows.length > 0) {
                   await supabase.from('order_items').insert(itemRows);
                 }
-              } else if (ordErr) {
-                console.warn('Supabase order insert error:', ordErr);
               }
-            } catch (dbErr) {
-              console.warn('Supabase orders table insert notice:', dbErr);
-            }
+            } catch (dbErr) {}
           }
 
-          // 3. Deduct stock for all purchased items locally and update Supabase products
           selectedItemsList.forEach(it => {
             const p = PRODUCTS.find(x => String(x.id) === String(it.id));
             if (p) {
@@ -7843,12 +8537,9 @@
                   await supabase.from('products').update({ stock: p.stock }).eq('id', p.id);
                 }
               }
-            } catch (stkErr) {
-              console.warn('Supabase stock update notice:', stkErr);
-            }
+            } catch (stkErr) {}
           }
 
-          // 4. Real-time broadcast stock deduction to all other connected devices
           if (syncChannel) {
             try {
               syncChannel.send({
@@ -7868,7 +8559,7 @@
           drawStore('receipt');
         });
       } else if (key === 'receipt') {
-        const latestOrder = (state.lastOrderId && ORDERS.find(x => String(x.id) === String(state.lastOrderId))) || ORDERS[0] || { id: 'HP-1042', customer: 'Anna Wong', farm_name: 'BNC Hay Farm', farm_tag: '#FARM-01', date: new Date().toISOString().split('T')[0], total: 35.30, subtotal: 35.30, discount: 0, delivery: 0 };
+        const latestOrder = (state.lastOrderId && ORDERS.find(x => String(x.id) === String(state.lastOrderId))) || ORDERS[0] || { id: 'HP-1042', customer: 'Anna Wong', farm_name: 'BNC Hay Farm', farm_tag: '#FARM-01', date: new Date().toISOString().split('T')[0], total: 35.30, subtotal: 35.30, discount: 0, delivery: 0, items_data: [] };
         const logoType = state.store.receiptLogoType || 'emoji';
         const logoImage = state.store.receiptLogoImage || '';
         const logoEmoji = state.store.receiptLogoEmoji || 'B';
@@ -7878,7 +8569,7 @@
         const footerType = state.store.receiptFooterType || 'qr';
         const footerImage = state.store.receiptFooterImage || '';
         const footerEmoji = state.store.receiptFooterEmoji || '';
-        const footerMsg = state.store.receiptFooterMsg || 'Thank you for your order ';
+        const footerMsg = state.store.receiptFooterMsg || 'Thank you for your order';
         const footerSub = state.store.receiptFooterSub || '';
 
         const logoHtml = (logoType === 'image' && logoImage)
@@ -7896,76 +8587,159 @@
 
         const rSubtotal = latestOrder.subtotal !== undefined ? latestOrder.subtotal : latestOrder.total;
         const rDiscount = latestOrder.discount || 0;
+        const orderItemsList = (latestOrder.items_data && latestOrder.items_data.length > 0)
+          ? latestOrder.items_data
+          : (latestOrder.items && Array.isArray(latestOrder.items))
+            ? latestOrder.items
+            : PRODUCTS.slice(0, 3).map((p, i) => ({ name: p.name, qty: i + 1, price: p.price, total: getItemPrice(p, i + 1) }));
 
         view.appendChild(el(`
-          <div class="receipt">
-            <div class="r-head">
-              <div class="r-logo">${logoHtml}</div>
-              <div class="r-store">${escapeHTML(storeName)}</div>
-              <div class="r-sub">${escapeHTML(storeSub)}</div>
+          <div style="max-width:400px; margin:0 auto;">
+            <!-- Receipt Printable & Capturable Card (Requirement 2) -->
+            <div class="receipt" id="receiptPrintArea" style="padding:24px 22px; background:var(--card); border:1.5px solid var(--border); border-radius:20px; box-shadow:var(--shadow-soft);">
+              <div class="r-head">
+                <div class="r-logo">${logoHtml}</div>
+                <div class="r-store">${escapeHTML(storeName)}</div>
+                <div class="r-sub">${escapeHTML(storeSub)}</div>
+              </div>
+              <div class="r-line"></div>
+              <div class="r-items">
+                <div class="r-row"><span>Order ID</span><span><strong>${latestOrder.id}</strong></span></div>
+                <div class="r-row"><span>Date</span><span>${latestOrder.date}</span></div>
+                <div class="r-row"><span>Customer</span><span>${escapeHTML(latestOrder.customer)}</span></div>
+                ${latestOrder.farm_name ? `<div class="r-row"><span>Farm</span><span>${escapeHTML(latestOrder.farm_name)}</span></div>` : ''}
+                ${latestOrder.farm_tag ? `<div class="r-row"><span>Farm Tag</span><span>${escapeHTML(latestOrder.farm_tag)}</span></div>` : ''}
+                ${latestOrder.contact ? `<div class="r-row"><span>Contact</span><span>${escapeHTML(latestOrder.contact)}</span></div>` : ''}
+              </div>
+              <div class="r-line"></div>
+              <div class="r-items">
+                ${orderItemsList.map(it => `
+                  <div class="r-row">
+                    <span>${escapeHTML(it.name || it.product_name || 'Item')} × ${it.qty || it.quantity || 1}</span>
+                    <span>${money(it.total || it.subtotal || (it.price * it.qty) || 0)}</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="r-line"></div>
+              <div class="r-items">
+                <div class="r-row"><span>Subtotal</span><span>${money(rSubtotal)}</span></div>
+                ${rDiscount > 0 ? `<div class="r-row" style="color:var(--accent-text); font-weight:700;"><span>Discount (${escapeHTML(latestOrder.promo_code || 'Promo')})</span><span style="color:var(--danger)">-${money(rDiscount)}</span></div>` : ''}
+                <div class="r-row r-total" style="font-size:17px; font-weight:800; color:var(--accent-text); margin-top:4px;"><span>Total</span><span>${money(latestOrder.total)}</span></div>
+              </div>
+              ${footerGraphicHtml}
+              <div style="text-align:center; font-family:'Sunshiney', cursive; font-size:22px; font-weight:700; color:var(--accent-text); margin-top:8px; line-height:1.2;">${escapeHTML(footerMsg)}</div>
+              ${footerSub ? `<div style="text-align:center; font-size:12px; color:var(--muted); margin-top:4px; font-weight:500; line-height:1.3;">${escapeHTML(footerSub)}</div>` : ''}
             </div>
-            <div class="r-line"></div>
-            <div class="r-items">
-              <div class="r-row"><span>Order</span><span><strong>${latestOrder.id}</strong></span></div>
-              <div class="r-row"><span>Date</span><span>${latestOrder.date}</span></div>
-              <div class="r-row"><span>Customer</span><span>${escapeHTML(latestOrder.customer)}</span></div>
-              ${latestOrder.farm_name ? `<div class="r-row"><span>Farm</span><span>${escapeHTML(latestOrder.farm_name)}</span></div>` : ''}
-              ${latestOrder.farm_tag ? `<div class="r-row"><span>Farm Tag</span><span>${escapeHTML(latestOrder.farm_tag)}</span></div>` : ''}
+
+            <!-- Receipt Actions Outside Printable Area -->
+            <div style="margin-top:14px;">
+              <button class="btn btn-primary btn-block" id="btnTrackOrder" style="font-size:14px; font-weight:700; padding:10px;">Track your order (ติดตามสถานะคำสั่งซื้อ) →</button>
+              <button class="btn btn-block mt-2" id="dlReceipt" style="font-size:13.5px; font-weight:700; background:var(--card); border:1.5px solid var(--border); padding:10px;">💾 บันทึกรูปภาพใบเสร็จ (Save Image)</button>
+              <button class="btn btn-block mt-2" id="btnPrintReceipt" style="font-size:12.5px; font-weight:600; padding:8px;">🖨️ พิมพ์ใบเสร็จ (Print / PDF)</button>
             </div>
-            <div class="r-line"></div>
-            <div class="r-items">
-              ${PRODUCTS.slice(0,3).map((p, i) => `<div class="r-row"><span>${escapeHTML(p.name)} × ${i+1}</span><span>${money(p.price * (i+1))}</span></div>`).join('')}
-            </div>
-            <div class="r-line"></div>
-            <div class="r-items">
-              <div class="r-row"><span>Subtotal</span><span>${money(rSubtotal)}</span></div>
-              ${rDiscount > 0 ? `<div class="r-row" style="color:var(--accent-text); font-weight:700;"><span>Discount (${escapeHTML(latestOrder.promo_code || 'Promo')})</span><span style="color:var(--danger)">-${money(rDiscount)}</span></div>` : ''}
-              <div class="r-row r-total"><span>Total</span><span>${money(latestOrder.total)}</span></div>
-            </div>
-            ${footerGraphicHtml}
-            <div style="text-align:center; font-family:'Sunshiney', cursive; font-size:22px; font-weight:700; color:var(--accent-text); margin-top:8px; line-height:1.2;">${escapeHTML(footerMsg)}</div>
-            <button class="btn btn-primary btn-block mt-3" id="btnTrackOrder" style="font-size:14px; font-weight:700;">Track your order →</button>
-            <button class="btn btn-block mt-2" id="dlReceipt" style="font-size:13.5px; font-weight:700;">Download / Share Receipt (บันทึก/พิมพ์ใบเสร็จ)</button>
           </div>
         `));
+
         view.querySelector('#btnTrackOrder').addEventListener('click', () => {
           root.querySelectorAll('#storeTabs .tab').forEach(x => x.classList.remove('active'));
           root.querySelector('#storeTabs [data-s="tracking"]').classList.add('active');
           drawStore('tracking');
         });
+
+        // High Quality Receipt Image Saving using html2canvas
         view.querySelector('#dlReceipt').addEventListener('click', async () => {
-          if (navigator.share) {
+          const receiptEl = view.querySelector('#receiptPrintArea');
+          if (!receiptEl) return;
+          toast('กำลังบันทึกรูปภาพใบเสร็จ...', 'info');
+
+          if (window.html2canvas) {
             try {
-              await navigator.share({
-                title: 'BNC HayMate Order Receipt',
-                text: `BNC HayMate Receipt #${latestOrder.id} - ${latestOrder.customer} - Total: ${money(latestOrder.total)}`,
-                url: window.location.href
+              const canvas = await html2canvas(receiptEl, {
+                scale: 2.5,
+                useCORS: true,
+                backgroundColor: '#FFFFFF',
+                logging: false
               });
-              toast('แชร์ใบเสร็จเรียบร้อย', 'success');
+              const link = document.createElement('a');
+              link.download = `BNC-Receipt-${latestOrder.id || 'Order'}.png`;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+              toast('บันทึกรูปภาพใบเสร็จเรียบร้อย 📄✨', 'success');
               return;
-            } catch (err) {}
+            } catch (err) {
+              console.warn('html2canvas error:', err);
+            }
           }
           window.print();
         });
+
+        view.querySelector('#btnPrintReceipt').addEventListener('click', () => {
+          window.print();
+        });
+
       } else if (key === 'tracking') {
         const latestOrder = (state.lastOrderId && ORDERS.find(x => String(x.id) === String(state.lastOrderId))) || ORDERS[0] || { id: 'HP-1042', customer: 'Anna Wong', date: new Date().toISOString().split('T')[0], status: 'waiting' };
         const trackingTitle = state.store.trackingReviewTitle || state.store.receiptStoreName || state.store.name || 'BNC HayMate';
         const trackingSub = state.store.trackingReviewSub || '';
         const trackingBtn = state.store.trackingReviewBtnText || 'เขียนรีวิว & ให้คะแนนร้าน';
+        const contactLabel = state.store.trackingContactLabel || '💬 ทักแชทแจ้งออเดอร์ (Line OA)';
+        const contactUrl = state.store.trackingContactUrl || 'https://line.me/R/ti/p/@bnchaymate';
 
         view.appendChild(el(`
           <div class="card" style="max-width:560px; margin:0 auto;">
             <div class="card-title">Order Tracking</div>
             <div class="card-sub">Order ${latestOrder.id} · Live Status</div>
+            
+            <!-- Tracking Timeline (Requirement 1: Step 3 "You're in queue") -->
             <div class="timeline" style="margin-top:14px">
-              <div class="step done"><div class="bullet">✓</div><div><div class="label">Waiting Payment</div><div class="sub">กรุณาชำระเงินเพื่อยืนยันคำสั่งซื้อ</div></div></div>
-              <div class="step ${latestOrder.status !== 'waiting' ? 'done' : 'active'}"><div class="bullet">${latestOrder.status !== 'waiting' ? '✓' : '2'}</div><div><div class="label">Payment Verify</div><div class="sub">ร้านกำลังตรวจสอบคำสั่งซื้อ กรุณารอสักครู่</div></div></div>
-              <div class="step ${latestOrder.status === 'preparing' || latestOrder.status === 'completed' ? (latestOrder.status === 'completed' ? 'done' : 'active') : ''}"><div class="bullet">${latestOrder.status === 'completed' ? '✓' : '3'}</div><div><div class="label">Preparing</div><div class="sub">ตรวจสอบคำสั่งซื้อเสร็จสิ้น รอรับไอเทมตามคิว นำรหัสสลิปทักสอบถามคิวได้เลย</div></div></div>
-              <div class="step ${latestOrder.status === 'completed' ? 'done' : ''}"><div class="bullet">${latestOrder.status === 'completed' ? '✓' : '4'}</div><div><div class="label">Complete</div><div class="sub">จัดส่งเรียบร้อย</div></div></div>
+              <div class="step done">
+                <div class="bullet">✓</div>
+                <div>
+                  <div class="label">Waiting Payment</div>
+                  <div class="sub">กรุณาชำระเงินเพื่อยืนยันคำสั่งซื้อ</div>
+                </div>
+              </div>
+              <div class="step ${latestOrder.status !== 'waiting' ? 'done' : 'active'}">
+                <div class="bullet">${latestOrder.status !== 'waiting' ? '✓' : '2'}</div>
+                <div>
+                  <div class="label">Payment Verify</div>
+                  <div class="sub">ร้านกำลังตรวจสอบคำสั่งซื้อ กรุณารอสักครู่</div>
+                </div>
+              </div>
+              <div class="step ${latestOrder.status === 'preparing' || latestOrder.status === 'completed' ? (latestOrder.status === 'completed' ? 'done' : 'active') : ''}">
+                <div class="bullet">${latestOrder.status === 'completed' ? '✓' : '3'}</div>
+                <div>
+                  <div class="label" style="font-weight:800; color:var(--text);">You're in queue</div>
+                  <div class="sub" style="color:var(--accent-text); font-weight:600;">กรุณาคัดลอกรหัสออเดอร์ส่งให้ทางร้าน</div>
+                </div>
+              </div>
+              <div class="step ${latestOrder.status === 'completed' ? 'done' : ''}">
+                <div class="bullet">${latestOrder.status === 'completed' ? '✓' : '4'}</div>
+                <div>
+                  <div class="label">Complete</div>
+                  <div class="sub">จัดส่งเรียบร้อย</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons for Queue & Contact (Requirement 1) -->
+            <div style="background:var(--card); border:1.5px solid var(--border); border-radius:16px; padding:16px; margin-top:18px; box-shadow:var(--shadow-soft);">
+              <div style="font-size:12px; font-weight:700; color:var(--muted); margin-bottom:4px;">รหัสคำสั่งซื้อของคุณ (Order Code):</div>
+              <div style="font-size:19px; font-weight:900; color:var(--accent-text); letter-spacing:0.5px; margin-bottom:12px;">
+                ${escapeHTML(latestOrder.id)}
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                <button type="button" class="btn btn-primary" id="btnCopyOrderId" style="flex:1; min-width:180px; font-size:13px; font-weight:700; border-radius:12px; padding:9px 16px;">
+                  📋 คัดลอกรหัสออเดอร์
+                </button>
+                <a href="${escapeHTML(contactUrl)}" target="_blank" rel="noopener noreferrer" class="btn" id="btnContactShopLink" style="flex:1; min-width:180px; font-size:13px; font-weight:700; border-radius:12px; padding:9px 16px; background:var(--primary-50); color:var(--accent-text); border:1.5px solid var(--border); text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                  ${escapeHTML(contactLabel)}
+                </a>
+              </div>
             </div>
 
             <!-- Review Card for Customers (Calligraphy Store Name + Subtext) -->
-            <div style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:18px; padding:22px 18px; margin-top:22px; text-align:center; box-shadow:var(--shadow-soft);">
+            <div style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:18px; padding:22px 18px; margin-top:20px; text-align:center; box-shadow:var(--shadow-soft);">
               <div style="font-family:'Sunshiney', cursive; font-size:36px; font-weight:700; color:var(--accent-text); line-height:1.2; letter-spacing:0.5px;">
                 ${escapeHTML(trackingTitle)}
               </div>
@@ -7980,6 +8754,21 @@
             <button class="btn btn-block mt-4" id="btnBackToReceipt">← Back to Receipt</button>
           </div>
         `));
+
+        // Copy Order Code Button listener
+        view.querySelector('#btnCopyOrderId')?.addEventListener('click', () => {
+          const code = latestOrder.id || '';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(() => {
+              toast(`คัดลอกรหัสออเดอร์ "${code}" เรียบร้อยแล้ว 📋`, 'success');
+            }).catch(() => {
+              toast(`คัดลอกรหัส: ${code}`, 'success');
+            });
+          } else {
+            toast(`คัดลอกรหัส: ${code}`, 'success');
+          }
+        });
+
         view.querySelector('#btnTrackingReview')?.addEventListener('click', () => openWriteReviewModal(latestOrder));
         view.querySelector('#btnBackToReceipt').addEventListener('click', () => {
           root.querySelectorAll('#storeTabs .tab').forEach(x => x.classList.remove('active'));
