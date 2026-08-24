@@ -565,12 +565,16 @@
     if (!searchWrap) return;
     if (!state.isAdmin) {
       const icon = state.store.announcementIcon || '📢';
-      const text = state.store.announcementText || 'ยินดีต้อนรับสู่ BNC HayMate ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.';
+      const text = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
       searchWrap.className = 'search-wrap marquee-ticker-wrap';
       searchWrap.innerHTML = `
-        <div class="ticker-badge">${escapeHTML(icon)} <span>ประกาศ</span></div>
-        <div class="ticker-content-track">
-          <span class="ticker-text-marquee">${escapeHTML(text)}</span>
+        <div class="ticker-badge" style="flex:none; margin:0 8px 0 0; background:var(--primary-50); color:var(--accent-text); font-weight:800; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px;">
+          ${escapeHTML(icon)} <span>ประกาศ</span>
+        </div>
+        <div class="ticker-content-track" style="flex:1; min-width:0; overflow:hidden; display:flex; align-items:center;">
+          <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();" style="font-size:13px; font-weight:700; color:var(--text); width:100%; display:block; line-height:1.2;">
+            ${escapeHTML(text)}
+          </marquee>
         </div>
       `;
       searchWrap.style.cursor = 'default';
@@ -7955,6 +7959,23 @@
       view.innerHTML = '';
       updateFloatingCartBtn();
       if (key === 'home') {
+        // 0. Top Marquee Announcement Bar on Home
+        const annIcon = state.store.announcementIcon || '📢';
+        const annText = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
+        const annEl = el(`
+          <div class="home-marquee-banner" style="display:flex; align-items:center; background:var(--card); border:1.5px solid var(--border); border-radius:999px; height:42px; padding:0 14px 0 6px; margin-bottom:14px; box-shadow:var(--shadow-soft); overflow:hidden;">
+            <div class="ticker-badge" style="margin:0 10px 0 0; flex:none; background:var(--primary-50); color:var(--accent-text); font-weight:800; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px;">
+              ${escapeHTML(annIcon)} <span>ประกาศ</span>
+            </div>
+            <div style="flex:1; min-width:0; overflow:hidden; display:flex; align-items:center;">
+              <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();" style="font-size:13px; font-weight:700; color:var(--text); width:100%; display:block; line-height:1.2;">
+                ${escapeHTML(annText)}
+              </marquee>
+            </div>
+          </div>
+        `);
+        view.appendChild(annEl);
+
         // 1. Mascot & Contact Channels Section (Home Page Top - Requirement 1)
         const mascotImg = state.store.homeMascotImage || '';
         const mascotEmoji = state.store.homeMascotEmoji || '🌸';
@@ -8473,17 +8494,11 @@
                 ${mediaHtml}
                 <span class="stock-dot"></span>
                 <span class="qty-badge">${qty}</span>
-                ${(ruleTiers && ruleTiers.length > 0) ? `
-                  <div class="tier-chips-wrap" style="position:absolute; bottom:2px; left:2px; right:2px; display:flex; justify-content:center; gap:2px; z-index:3;">
-                    ${ruleTiers.slice(0,3).map(t => `<button type="button" class="tier-chip-btn" data-tid="${p.id}" data-tqty="${t.qty}" title="${t.qty} ชิ้น ${money(t.price)}">+${t.qty}</button>`).join('')}
-                  </div>
-                ` : ''}
               </div>
             `);
 
             // Tile Click to increment
             tile.addEventListener('click', (e) => {
-              if (e.target.closest('.tier-chip-btn')) return;
               if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
               const clickStep = (rule && rule.stepQty) ? rule.stepQty : 1;
               state.selected[p.id] = (state.selected[p.id] || 0) + clickStep;
@@ -8492,22 +8507,6 @@
               if (badge) badge.textContent = state.selected[p.id];
               updateCartInfo();
               updateFloatingCartBtn();
-            });
-
-            // Quick tier buttons listener
-            tile.querySelectorAll('.tier-chip-btn').forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
-                const addQty = Number(btn.dataset.tqty || 1);
-                state.selected[p.id] = (state.selected[p.id] || 0) + addQty;
-                tile.classList.add('selected');
-                const badge = tile.querySelector('.qty-badge');
-                if (badge) badge.textContent = state.selected[p.id];
-                toast(`เพิ่ม ${p.name} +${addQty} ชิ้นในตะกร้า`, 'success');
-                updateCartInfo();
-                updateFloatingCartBtn();
-              });
             });
 
             tile.addEventListener('contextmenu', (e) => {
