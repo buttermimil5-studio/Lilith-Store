@@ -292,6 +292,7 @@
     trackingContactUrl: 'https://line.me/R/ti/p/@bnchaymate',
     // Marquee Announcement Ticker Settings
     announcementIcon: '📢',
+    announcementImage: '',
     announcementText: 'ยินดีต้อนรับสู่ BNC HayMate ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.',
     announcementEnabled: true,
     // Dynamic Pricing Rule Boxes (Category + Level Range + Tiers)
@@ -565,10 +566,14 @@
     if (!searchWrap) return;
     if (!state.isAdmin) {
       const icon = state.store.announcementIcon || '📢';
+      const img = state.store.announcementImage || '';
       const text = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
+      const iconHtml = img
+        ? `<img src="${escapeHTML(img)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(icon)}</span>`
+        : `<span>${escapeHTML(icon)}</span>`;
       searchWrap.className = 'search-wrap marquee-ticker-wrap';
       searchWrap.innerHTML = `
-        <div class="ticker-icon-badge">${escapeHTML(icon)}</div>
+        <div class="ticker-icon-badge">${iconHtml}</div>
         <div class="ticker-track-smooth">
           <div class="ticker-marquee-inner">
             <span class="ticker-marquee-text">${escapeHTML(text)}</span>
@@ -5748,6 +5753,7 @@
     let currentReceiptFooterImage = state.store.receiptFooterImage || '';
     let currentQrPaymentImage = state.store.qr_image_url || '';
     let currentHomeMascotImage = state.store.homeMascotImage || '';
+    let currentAnnImage = state.store.announcementImage || '';
     let currentHighlights = JSON.parse(JSON.stringify(state.store.highlights || DEFAULT_STORE_CONFIG.highlights));
     let currentPaymentAccounts = JSON.parse(JSON.stringify(state.store.payment_accounts || DEFAULT_STORE_CONFIG.payment_accounts));
     let currentContactChannels = JSON.parse(JSON.stringify(state.store.contactChannels || DEFAULT_STORE_CONFIG.contactChannels));
@@ -5893,15 +5899,34 @@
         <!-- SECTION 4.5: Marquee Announcement Bar (Requirement 4) -->
         <div class="card">
           <div class="card-title">Top Marquee Announcement Bar (ข้อความวิ่งประกาศแถบขาวด้านบนหน้าร้าน)</div>
-          <div class="card-sub">เปลี่ยนช่องค้นหาด้านบนหน้าร้านให้เป็นข้อความประกาศวิ่ง พร้อมไอคอน/อิโมจิที่ปรับแต่งได้</div>
-          <div class="grid" style="grid-template-columns: 140px 1fr; gap:12px; margin-top:12px; align-items:flex-end;">
-            <div class="field" style="margin-bottom:0;">
-              <label style="font-size:12px; font-weight:700;">อิโมจิ / ไอคอน</label>
-              <input class="input" id="setAnnouncementIcon" value="${escapeHTML(state.store.announcementIcon || '📢')}" style="text-align:center; font-size:18px;" />
+          <div class="card-sub">ปรับแต่งไอคอน (รูปภาพหรืออิโมจิ) และข้อความประกาศวิ่งด้านบนสุดของหน้าร้าน</div>
+          
+          <div style="background:var(--primary-50); padding:14px; border-radius:14px; border:1px solid var(--border); margin-top:12px;">
+            <div style="font-weight:700; font-size:13.5px; margin-bottom:10px; color:var(--text);">ไอคอน / รูปภาพประกาศ (Announcement Icon/Image)</div>
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+              <div style="width:46px; height:46px; border-radius:50%; overflow:hidden; border:2px dashed var(--primary-600); background:var(--card); display:grid; place-items:center; flex:none;">
+                <img id="annImgPreview" src="${escapeHTML(currentAnnImage)}" style="width:100%; height:100%; object-fit:cover; display:${currentAnnImage ? 'block' : 'none'};" onerror="this.style.display='none';" />
+                <span id="annImgFallback" style="font-size:22px; display:${currentAnnImage ? 'none' : 'block'};">${escapeHTML(state.store.announcementIcon || '📢')}</span>
+              </div>
+              <div style="flex:1;">
+                <input type="file" id="fileAnnImg" accept="image/*" style="display:none;" />
+                <div class="flex gap-2">
+                  <button type="button" class="btn btn-sm" id="btnUploadAnnImg" style="font-size:11.5px; padding:4px 12px; font-weight:700;">+ อัปโหลดรูปไอคอน</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnClearAnnImg" style="font-size:11.5px; padding:4px 8px; color:var(--danger); display:${currentAnnImage ? 'inline-block' : 'none'};">ลบรูป</button>
+                </div>
+                <input class="input" id="setAnnImgUrl" value="${escapeHTML(currentAnnImage)}" placeholder="หรือวาง URL รูปภาพไอคอน" style="font-size:12px; margin-top:6px;" />
+              </div>
             </div>
-            <div class="field" style="margin-bottom:0;">
-              <label style="font-size:12px; font-weight:700;">ข้อความประกาศวิ่ง (Announcement Text)</label>
-              <input class="input" id="setAnnouncementText" value="${escapeHTML(state.store.announcementText || 'ยินดีต้อนรับสู่ BNC HayMate · สินค้าพร้อมส่งทุกวัน ทักไลน์สอบถามคิวได้ตลอด 24 ชม.')}" />
+
+            <div class="grid" style="grid-template-columns: 140px 1fr; gap:12px;">
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11.5px; font-weight:700;">อิโมจิสำรอง (Fallback Emoji)</label>
+                <input class="input" id="setAnnouncementIcon" value="${escapeHTML(state.store.announcementIcon || '📢')}" style="text-align:center; font-size:18px;" />
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label style="font-size:11.5px; font-weight:700;">ข้อความประกาศวิ่ง (Announcement Text) *</label>
+                <input class="input" id="setAnnouncementText" value="${escapeHTML(state.store.announcementText || 'ยินดีต้อนรับสู่ BNC HayMate · สินค้าพร้อมส่งทุกวัน ทักไลน์สอบถามคิวได้ตลอด 24 ชม.')}" />
+              </div>
             </div>
           </div>
         </div>
@@ -7182,6 +7207,53 @@
       toast('ลบรูปภาพมาสคอตแล้ว', 'info');
     });
 
+    // Top Marquee Announcement Image Handlers
+    const fileAnnImg = formWrap.querySelector('#fileAnnImg');
+    const btnUploadAnnImg = formWrap.querySelector('#btnUploadAnnImg');
+    const btnClearAnnImg = formWrap.querySelector('#btnClearAnnImg');
+    const annImgPreview = formWrap.querySelector('#annImgPreview');
+    const annImgFallback = formWrap.querySelector('#annImgFallback');
+    const annUrlInp = formWrap.querySelector('#setAnnImgUrl');
+
+    btnUploadAnnImg?.addEventListener('click', () => fileAnnImg?.click());
+    fileAnnImg?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        currentAnnImage = await uploadProductImage(file);
+        if (annImgPreview) {
+          annImgPreview.src = currentAnnImage;
+          annImgPreview.style.display = 'block';
+        }
+        if (annImgFallback) annImgFallback.style.display = 'none';
+        if (btnClearAnnImg) btnClearAnnImg.style.display = 'inline-block';
+        if (annUrlInp) annUrlInp.value = currentAnnImage;
+        toast('อัปโหลดรูปภาพไอคอนประกาศเรียบร้อย', 'success');
+      } catch (err) {
+        toast('อัปโหลดไม่สำเร็จ: ' + (err.message || err), 'error');
+      }
+    });
+
+    annUrlInp?.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      currentAnnImage = val;
+      if (annImgPreview) {
+        annImgPreview.src = val;
+        annImgPreview.style.display = val ? 'block' : 'none';
+      }
+      if (annImgFallback) annImgFallback.style.display = val ? 'none' : 'block';
+      if (btnClearAnnImg) btnClearAnnImg.style.display = val ? 'inline-block' : 'none';
+    });
+
+    btnClearAnnImg?.addEventListener('click', () => {
+      currentAnnImage = '';
+      if (annUrlInp) annUrlInp.value = '';
+      if (annImgPreview) annImgPreview.style.display = 'none';
+      if (annImgFallback) annImgFallback.style.display = 'block';
+      btnClearAnnImg.style.display = 'none';
+      toast('ลบรูปภาพไอคอนประกาศแล้ว', 'info');
+    });
+
     // 4 Highlights Settings Manager (Requirement 6)
     const renderHighlightsList = () => {
       const listEl = formWrap.querySelector('#highlightsSettingsList');
@@ -7379,6 +7451,7 @@
 
       // Save Marquee Announcement (Requirement 4)
       state.store.announcementIcon = formWrap.querySelector('#setAnnouncementIcon')?.value.trim() || '📢';
+      state.store.announcementImage = (currentAnnImage && !currentAnnImage.startsWith('(Uploaded')) ? currentAnnImage : (annUrlInp?.value && annUrlInp.value !== '(Uploaded Photo)' ? annUrlInp.value : currentAnnImage || '');
       state.store.announcementText = formWrap.querySelector('#setAnnouncementText')?.value.trim() || '';
 
       // Save Home Mascot & Contact Channels (Requirement 7)
@@ -7960,10 +8033,14 @@
       if (key === 'home') {
         // 0. Top Marquee Announcement Bar on Home
         const annIcon = state.store.announcementIcon || '📢';
+        const annImg = state.store.announcementImage || '';
         const annText = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
+        const annIconHtml = annImg
+          ? `<img src="${escapeHTML(annImg)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(annIcon)}</span>`
+          : `<span>${escapeHTML(annIcon)}</span>`;
         const annEl = el(`
           <div class="home-marquee-banner">
-            <div class="ticker-icon-badge">${escapeHTML(annIcon)}</div>
+            <div class="ticker-icon-badge">${annIconHtml}</div>
             <div class="ticker-track-smooth">
               <div class="ticker-marquee-inner">
                 <span class="ticker-marquee-text">${escapeHTML(annText)}</span>
