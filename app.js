@@ -8031,26 +8031,6 @@
       view.innerHTML = '';
       updateFloatingCartBtn();
       if (key === 'home') {
-        // 0. Top Marquee Announcement Bar on Home
-        const annIcon = state.store.announcementIcon || '📢';
-        const annImg = state.store.announcementImage || '';
-        const annText = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
-        const annIconHtml = annImg
-          ? `<img src="${escapeHTML(annImg)}" alt="" style="width:100%; height:100%; object-fit:cover; border-radius:50%; display:block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(annIcon)}</span>`
-          : `<span>${escapeHTML(annIcon)}</span>`;
-        const annEl = el(`
-          <div class="home-marquee-banner">
-            <div class="ticker-icon-badge">${annIconHtml}</div>
-            <div class="ticker-track-smooth">
-              <div class="ticker-marquee-inner">
-                <span class="ticker-marquee-text">${escapeHTML(annText)}</span>
-                <span class="ticker-marquee-text">${escapeHTML(annText)}</span>
-              </div>
-            </div>
-          </div>
-        `);
-        view.appendChild(annEl);
-
         // 1. Mascot & Contact Channels Section (Home Page Top - Requirement 1)
         const mascotImg = state.store.homeMascotImage || '';
         const mascotEmoji = state.store.homeMascotEmoji || '🌸';
