@@ -161,6 +161,7 @@
     { key: 'orders', label: 'Orders', icon: ICONS.orders },
     { key: 'products', label: 'Products', icon: ICONS.products },
     { key: 'categories', label: 'Categories', icon: ICONS.categories },
+    { key: 'pricing', label: 'Setting Price', icon: ICONS.promotions },
     { key: 'stock', label: 'Stock', icon: ICONS.stock },
     { key: 'customers', label: 'Customers', icon: ICONS.customers },
     { key: 'reviews', label: 'Reviews', icon: ICONS.reviews },
@@ -293,19 +294,47 @@
     announcementIcon: '📢',
     announcementText: 'ยินดีต้อนรับสู่ BNC HayMate ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.',
     announcementEnabled: true,
-    // Category Quantity & Tiered Pricing Settings
-    categoryPricing: {
-      'อุปกรณ์ขยายที่ดิน': [
-        { qty: 5, price: 10 },
-        { qty: 10, price: 18 },
-        { qty: 100, price: 150 }
-      ],
-      'อุปกรณ์อัปเกรดโกดัง': [
-        { qty: 5, price: 12 },
-        { qty: 10, price: 20 },
-        { qty: 100, price: 180 }
-      ]
-    },
+    // Dynamic Pricing Rule Boxes (Category + Level Range + Tiers)
+    priceRules: [
+      {
+        id: 1,
+        category: 'อาหารสัตว์',
+        levelDisplay: '1 - 75',
+        minLevel: 1,
+        maxLevel: 75,
+        tiers: [
+          { qty: 10, price: 2 },
+          { qty: 50, price: 8 },
+          { qty: 100, price: 15 }
+        ]
+      },
+      {
+        id: 2,
+        category: 'อาหารสัตว์',
+        levelDisplay: '76 - 256',
+        minLevel: 76,
+        maxLevel: 256,
+        tiers: [
+          { qty: 10, price: 3 },
+          { qty: 50, price: 10 },
+          { qty: 100, price: 18 }
+        ]
+      },
+      {
+        id: 3,
+        category: 'ขนม',
+        levelDisplay: 'All Level',
+        minLevel: 1,
+        maxLevel: 9999,
+        tiers: [
+          { qty: 10, price: 2 },
+          { qty: 50, price: 8 },
+          { qty: 100, price: 10 }
+        ]
+      }
+    ],
+    // Category Quantity & Tiered Pricing Settings (Legacy fallback)
+    categoryPricing: {},
     // Level Categories & Ranges
     levelRanges: ['Lv. 1 - 20', 'Lv. 21 - 40', 'Lv. 41 - 60', 'Lv. 61 - 80', 'Lv. 81 - 100+'],
     // Mascot & Contact Channels (Home Page)
@@ -456,12 +485,49 @@
   const money = (n) => getCurrencySymbol() + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const escapeHTML = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+  function getProductPriceRule(product) {
+    if (!product) return null;
+    const rules = (state.store?.priceRules && Array.isArray(state.store.priceRules))
+      ? state.store.priceRules
+      : (DEFAULT_STORE_CONFIG.priceRules || []);
+    
+    const pCat = (product.cat || '').trim();
+    const pLevel = parseInt(product.level || 1, 10);
+
+    // 1. Match specific category and specific level range
+    const rangeMatch = rules.find(r => {
+      if (!r || (r.category || '').trim() !== pCat) return false;
+      const isAll = (r.levelDisplay === 'All Level' || r.levelDisplay === 'ทุกเลเวล' || !r.minLevel);
+      if (isAll) return false;
+      const min = parseInt(r.minLevel || 1, 10);
+      const max = parseInt(r.maxLevel || 99999, 10);
+      return pLevel >= min && pLevel <= max;
+    });
+    if (rangeMatch) return rangeMatch;
+
+    // 2. Match specific category and 'All Level'
+    const allLevelMatch = rules.find(r => {
+      if (!r || (r.category || '').trim() !== pCat) return false;
+      return (r.levelDisplay === 'All Level' || r.levelDisplay === 'ทุกเลเวล' || !r.minLevel);
+    });
+    if (allLevelMatch) return allLevelMatch;
+
+    // 3. Fallback: Legacy categoryPricing if any
+    const legacyTiers = state.store?.categoryPricing?.[pCat];
+    if (legacyTiers && Array.isArray(legacyTiers) && legacyTiers.length > 0) {
+      return { category: pCat, levelDisplay: 'All Level', tiers: legacyTiers };
+    }
+
+    return null;
+  }
+
   function getItemPrice(product, qty = 1) {
     if (!product) return 0;
-    const cat = product.cat || '';
-    const catTiers = state.store?.categoryPricing?.[cat];
     const nQty = Number(qty || 0);
     if (nQty <= 0) return 0;
+
+    const rule = getProductPriceRule(product);
+    const catTiers = rule?.tiers;
 
     if (catTiers && Array.isArray(catTiers) && catTiers.length > 0) {
       const validTiers = catTiers.filter(t => Number(t.qty) > 0 && Number(t.price) >= 0).sort((a, b) => Number(b.qty) - Number(a.qty));
@@ -494,7 +560,7 @@
   }
 
   function updateTopbarHeader() {
-    const searchWrap = document.querySelector('.search-wrap');
+    const searchWrap = document.getElementById('topbarSearchWrap') || document.querySelector('.topbar .search-wrap') || document.querySelector('.search-wrap');
     if (!searchWrap) return;
     if (!state.isAdmin) {
       const icon = state.store.announcementIcon || '📢';
@@ -4122,6 +4188,361 @@
   };
 
   // ============================================================
+  // PAGE 4.5: Setting Price (Category & Level Tier Rules)
+  // ============================================================
+  PAGES.pricing = (root) => {
+    let currentRules = JSON.parse(JSON.stringify(state.store.priceRules || DEFAULT_STORE_CONFIG.priceRules || []));
+
+    const render = () => {
+      root.innerHTML = '';
+      const head = el(`
+        <div class="page-head">
+          <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div>
+              <h1 class="page-title">Setting Price (ตั้งค่าราคา &amp; สเต็ปตามเลเวลและหมวดหมู่)</h1>
+              <div class="page-sub">จัดการกำหนดสเต็ปราคาสินค้าขายส่งตามหมวดหมู่และช่วงเลเวล (เช่น อาหารสัตว์ Lv. 1-75, Lv. 76-256 หรือ All Level)</div>
+            </div>
+            <button class="btn btn-primary" id="btnAddNewRuleBox" style="font-weight:700;">
+              + เพิ่มกล่องราคาใหม่ (+ Add Price Rule Box)
+            </button>
+          </div>
+        </div>
+      `);
+      root.appendChild(head);
+
+      const body = el(`
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div style="font-weight:800; font-size:14px; color:var(--accent-text);">
+            กล่องสเต็ปราคาที่เปิดใช้งาน (${currentRules.length} กล่อง)
+          </div>
+
+          ${currentRules.length === 0 ? `
+            <div class="card" style="text-align:center; padding:40px 16px; background:var(--card); border:1.5px dashed var(--border); border-radius:18px;">
+              <div style="font-size:15px; font-weight:800; color:var(--text); margin-bottom:6px;">ยังไม่มีการตั้งค่ากล่องราคา</div>
+              <div style="font-size:12.5px; color:var(--muted); margin-bottom:14px;">กดปุ่ม <strong>+ เพิ่มกล่องราคาใหม่</strong> ด้านบนเพื่อสร้างสเต็ปราคาตามหมวดหมู่และเลเวล</div>
+            </div>
+          ` : `
+            <div class="pricing-rules-grid">
+              ${currentRules.map((rule, rIdx) => {
+                const tiers = rule.tiers || [];
+                return `
+                  <div class="pricing-rule-card" data-ridx="${rIdx}">
+                    <!-- Card Header -->
+                    <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                      <div class="flex items-center gap-2" style="flex-wrap:wrap;">
+                        <span class="badge" style="background:var(--primary-100); color:var(--accent-text); font-weight:800; font-size:12px; padding:4px 10px;">
+                          📁 ${escapeHTML(rule.category || 'ทุกหมวดหมู่')}
+                        </span>
+                        <span class="badge ${rule.levelDisplay === 'All Level' || rule.levelDisplay === 'ทุกเลเวล' ? 'info' : 'success'}" style="font-weight:800; font-size:12px; padding:4px 10px;">
+                          🎯 ${escapeHTML(rule.levelDisplay || 'All Level')}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <button type="button" class="btn btn-sm btn-ghost btn-edit-rule" data-ridx="${rIdx}" title="แก้ไขข้อมูลกล่อง" style="font-size:11.5px; padding:3px 7px;">✏️</button>
+                        <button type="button" class="btn btn-sm btn-ghost btn-del-rule" data-ridx="${rIdx}" title="ลบกล่องนี้" style="color:var(--danger); font-size:11.5px; padding:3px 7px;">🗑️</button>
+                      </div>
+                    </div>
+
+                    <!-- Tiers List -->
+                    <div style="display:flex; flex-direction:column; gap:6px; margin:4px 0;">
+                      <div class="flex items-center" style="justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted);">
+                        <span>ช่วงราคา (${tiers.length} ช่อง)</span>
+                        <button type="button" class="btn btn-sm btn-ghost btn-add-tier-slot" data-ridx="${rIdx}" style="font-size:11.5px; font-weight:700; color:var(--primary-600); padding:1px 4px;">+ เพิ่มช่องราคา</button>
+                      </div>
+                      
+                      ${tiers.length === 0 ? `
+                        <div style="font-size:12px; color:var(--muted); text-align:center; padding:10px; background:var(--primary-50); border-radius:10px;">
+                          ยังไม่มีช่วงราคา (กดปุ่ม + เพิ่มช่องราคา)
+                        </div>
+                      ` : tiers.map((t, tIdx) => `
+                        <div class="pricing-tier-row">
+                          <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:11px; font-weight:700; color:var(--muted);">ช่องที่ ${tIdx + 1}:</span>
+                            <strong style="font-size:13.5px; color:var(--text);">${t.qty} ชิ้น</strong>
+                            <span style="color:var(--muted); font-size:11px;">➔</span>
+                            <strong style="font-size:13.5px; color:var(--accent-text);">${money(t.price)}</strong>
+                            <span style="font-size:11px; color:var(--muted); font-weight:500;">(${money(Number(t.price)/Number(t.qty))}/ชิ้น)</span>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-ghost btn-del-tier-slot" data-ridx="${rIdx}" data-tidx="${tIdx}" style="color:var(--danger); font-size:11px; padding:1px 5px;">✕</button>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `);
+      root.appendChild(body);
+
+      const persistRules = () => {
+        state.store.priceRules = currentRules;
+        try {
+          localStorage.setItem('haypos_store_settings', JSON.stringify(state.store));
+        } catch (e) {}
+        syncStoreSettingsAcrossDevices();
+      };
+
+      // Add Rule Box
+      head.querySelector('#btnAddNewRuleBox')?.addEventListener('click', () => {
+        let selectedCat = CATEGORIES[0]?.name || 'Bakery';
+        let levelType = 'range'; // 'range' or 'all'
+
+        openModal({
+          title: 'เพิ่มกล่องสเต็ปราคาใหม่ (+ Add Price Rule Box)',
+          body: `
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div class="field">
+                <label style="font-size:12px; font-weight:700;">หมวดหมู่สินค้า (Category) *</label>
+                <select class="select" id="ruleCatSelect" style="font-weight:700;">
+                  ${CATEGORIES.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="field">
+                <label style="font-size:12px; font-weight:700;">การกำหนดเลเวล (Level Requirement) *</label>
+                <div class="flex gap-2" style="margin-bottom:8px;">
+                  <button type="button" class="btn btn-sm btn-primary" id="btnLvlTypeRange" style="font-size:12px;">ระบุช่วงเลเวล (เช่น 1 - 75)</button>
+                  <button type="button" class="btn btn-sm" id="btnLvlTypeAll" style="font-size:12px;">All Level (ทุกเลเวล)</button>
+                </div>
+                
+                <div id="ruleRangeInputs" class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
+                  <div class="field" style="margin:0;">
+                    <label style="font-size:11px;">เลเวลเริ่มต้น (Min Level)</label>
+                    <input class="input" type="number" id="ruleMinLevel" value="1" min="1" />
+                  </div>
+                  <div class="field" style="margin:0;">
+                    <label style="font-size:11px;">เลเวลสิ้นสุด (Max Level)</label>
+                    <input class="input" type="number" id="ruleMaxLevel" value="75" min="1" />
+                  </div>
+                </div>
+              </div>
+
+              <div style="font-size:12px; color:var(--muted); background:var(--primary-50); padding:10px; border-radius:10px;">
+                💡 <em>เมื่อสร้างกล่องแล้ว สามารถกด <strong>+ เพิ่มช่องราคา</strong> เพื่อเพิ่มราคาตามจำนวน เช่น 10 ชิ้น 2 บาท, 50 ชิ้น 8 บาท, 100 ชิ้น 15 บาท ได้ไม่จำกัด</em>
+              </div>
+            </div>
+          `,
+          actions: [
+            { label: 'Cancel', kind: 'ghost' },
+            {
+              label: 'สร้างกล่องราคา',
+              kind: 'primary',
+              onClick: () => {
+                const cat = $('#ruleCatSelect')?.value || selectedCat;
+                const isRange = levelType === 'range';
+                const min = isRange ? parseInt($('#ruleMinLevel')?.value || 1, 10) : 1;
+                const max = isRange ? parseInt($('#ruleMaxLevel')?.value || 99999, 10) : 99999;
+                const lvlDisplay = isRange ? `${min} - ${max}` : 'All Level';
+
+                currentRules.push({
+                  id: Date.now(),
+                  category: cat,
+                  levelDisplay: lvlDisplay,
+                  minLevel: min,
+                  maxLevel: max,
+                  tiers: [
+                    { qty: 10, price: 2 },
+                    { qty: 50, price: 8 },
+                    { qty: 100, price: 15 }
+                  ]
+                });
+
+                persistRules();
+                render();
+                toast(`สร้างกล่องราคาสำหรับหมวดหมู่ "${cat}" (${lvlDisplay}) เรียบร้อย`, 'success');
+              }
+            }
+          ]
+        });
+
+        // Wire level type toggle in modal
+        setTimeout(() => {
+          const btnRange = $('#btnLvlTypeRange');
+          const btnAll = $('#btnLvlTypeAll');
+          const rangeWrap = $('#ruleRangeInputs');
+          btnRange?.addEventListener('click', () => {
+            levelType = 'range';
+            btnRange.classList.add('btn-primary');
+            btnAll.classList.remove('btn-primary');
+            if (rangeWrap) rangeWrap.style.display = 'grid';
+          });
+          btnAll?.addEventListener('click', () => {
+            levelType = 'all';
+            btnAll.classList.add('btn-primary');
+            btnRange.classList.remove('btn-primary');
+            if (rangeWrap) rangeWrap.style.display = 'none';
+          });
+        }, 50);
+      });
+
+      // Edit Box Modal
+      body.querySelectorAll('.btn-edit-rule').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rIdx = Number(btn.dataset.ridx);
+          const rule = currentRules[rIdx];
+          if (!rule) return;
+
+          let isAll = (rule.levelDisplay === 'All Level' || rule.levelDisplay === 'ทุกเลเวล');
+          let levelType = isAll ? 'all' : 'range';
+
+          openModal({
+            title: `แก้ไขกล่องราคา (${rule.category})`,
+            body: `
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div class="field">
+                  <label style="font-size:12px; font-weight:700;">หมวดหมู่สินค้า (Category) *</label>
+                  <select class="select" id="editRuleCatSelect" style="font-weight:700;">
+                    ${CATEGORIES.map(c => `<option value="${escapeHTML(c.name)}" ${c.name === rule.category ? 'selected' : ''}>${escapeHTML(c.name)}</option>`).join('')}
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label style="font-size:12px; font-weight:700;">การกำหนดเลเวล (Level Requirement) *</label>
+                  <div class="flex gap-2" style="margin-bottom:8px;">
+                    <button type="button" class="btn btn-sm ${!isAll ? 'btn-primary' : ''}" id="btnEditLvlTypeRange" style="font-size:12px;">ระบุช่วงเลเวล</button>
+                    <button type="button" class="btn btn-sm ${isAll ? 'btn-primary' : ''}" id="btnEditLvlTypeAll" style="font-size:12px;">All Level (ทุกเลเวล)</button>
+                  </div>
+                  
+                  <div id="editRuleRangeInputs" class="grid" style="grid-template-columns:1fr 1fr; gap:10px; display:${!isAll ? 'grid' : 'none'};">
+                    <div class="field" style="margin:0;">
+                      <label style="font-size:11px;">เลเวลเริ่มต้น (Min Level)</label>
+                      <input class="input" type="number" id="editRuleMinLevel" value="${rule.minLevel || 1}" min="1" />
+                    </div>
+                    <div class="field" style="margin:0;">
+                      <label style="font-size:11px;">เลเวลสิ้นสุด (Max Level)</label>
+                      <input class="input" type="number" id="editRuleMaxLevel" value="${rule.maxLevel || 75}" min="1" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `,
+            actions: [
+              { label: 'Cancel', kind: 'ghost' },
+              {
+                label: 'บันทึกการแก้ไข',
+                kind: 'primary',
+                onClick: () => {
+                  const cat = $('#editRuleCatSelect')?.value || rule.category;
+                  const isRange = levelType === 'range';
+                  const min = isRange ? parseInt($('#editRuleMinLevel')?.value || 1, 10) : 1;
+                  const max = isRange ? parseInt($('#editRuleMaxLevel')?.value || 99999, 10) : 99999;
+                  const lvlDisplay = isRange ? `${min} - ${max}` : 'All Level';
+
+                  rule.category = cat;
+                  rule.levelDisplay = lvlDisplay;
+                  rule.minLevel = min;
+                  rule.maxLevel = max;
+
+                  persistRules();
+                  render();
+                  toast('อัปเดตกล่องราคาเรียบร้อย', 'success');
+                }
+              }
+            ]
+          });
+
+          setTimeout(() => {
+            const btnRange = $('#btnEditLvlTypeRange');
+            const btnAll = $('#btnEditLvlTypeAll');
+            const rangeWrap = $('#editRuleRangeInputs');
+            btnRange?.addEventListener('click', () => {
+              levelType = 'range';
+              btnRange.classList.add('btn-primary');
+              btnAll.classList.remove('btn-primary');
+              if (rangeWrap) rangeWrap.style.display = 'grid';
+            });
+            btnAll?.addEventListener('click', () => {
+              levelType = 'all';
+              btnAll.classList.add('btn-primary');
+              btnRange.classList.remove('btn-primary');
+              if (rangeWrap) rangeWrap.style.display = 'none';
+            });
+          }, 50);
+        });
+      });
+
+      // Delete Box
+      body.querySelectorAll('.btn-del-rule').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rIdx = Number(btn.dataset.ridx);
+          const rule = currentRules[rIdx];
+          if (!rule) return;
+          confirmDialog(`Delete price box for "${rule.category}" (${rule.levelDisplay})?`, () => {
+            currentRules.splice(rIdx, 1);
+            persistRules();
+            render();
+            toast('ลบกล่องราคาเรียบร้อย', 'info');
+          });
+        });
+      });
+
+      // Add Tier Slot
+      body.querySelectorAll('.btn-add-tier-slot').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rIdx = Number(btn.dataset.ridx);
+          const rule = currentRules[rIdx];
+          if (!rule) return;
+
+          openModal({
+            title: `เพิ่มช่วงราคา: ${rule.category} (${rule.levelDisplay})`,
+            body: `
+              <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="field">
+                  <label style="font-size:12px; font-weight:700;">จำนวนชิ้น (Quantity) *</label>
+                  <input class="input" type="number" id="inpNewTierQty" placeholder="เช่น 10, 50, 100" min="1" />
+                </div>
+                <div class="field">
+                  <label style="font-size:12px; font-weight:700;">ราคารวมสำหรับจำนวนนี้ (Price) *</label>
+                  <input class="input" type="number" id="inpNewTierPrice" placeholder="เช่น 2, 8, 15" min="0" step="0.01" />
+                </div>
+              </div>
+            `,
+            actions: [
+              { label: 'Cancel', kind: 'ghost' },
+              {
+                label: 'เพิ่มช่องราคา',
+                kind: 'primary',
+                onClick: () => {
+                  const qty = parseInt($('#inpNewTierQty')?.value, 10);
+                  const price = parseFloat($('#inpNewTierPrice')?.value);
+                  if (!qty || isNaN(price)) return toast('กรุณากรอกจำนวนและราคาให้ถูกต้อง', 'error');
+
+                  if (!rule.tiers) rule.tiers = [];
+                  rule.tiers.push({ qty, price });
+                  rule.tiers.sort((a, b) => Number(a.qty) - Number(b.qty));
+
+                  persistRules();
+                  render();
+                  toast(`เพิ่ม ${qty} ชิ้น = ${money(price)} แล้ว`, 'success');
+                }
+              }
+            ]
+          });
+        });
+      });
+
+      // Delete Tier Slot
+      body.querySelectorAll('.btn-del-tier-slot').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const rIdx = Number(btn.dataset.ridx);
+          const tIdx = Number(btn.dataset.tidx);
+          const rule = currentRules[rIdx];
+          if (!rule || !rule.tiers) return;
+
+          rule.tiers.splice(tIdx, 1);
+          persistRules();
+          render();
+          toast('ลบช่วงราคาเรียบร้อย', 'info');
+        });
+      });
+    };
+
+    render();
+  };
+
+  // ============================================================
   // PAGE 5: Stock
   // ============================================================
   PAGES.stock = (root) => {
@@ -5483,23 +5904,6 @@
           <div id="contactChannelsSettingsList" style="display:flex; flex-direction:column; gap:10px;"></div>
         </div>
 
-        <!-- SECTION 4.7: Category Step & Tiered Pricing Settings (Requirement 3) -->
-        <div class="card">
-          <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-            <div>
-              <div class="card-title">Category Tiered &amp; Step Pricing (การตั้งราคาขายส่งตามจำนวนและหมวดหมู่)</div>
-              <div class="card-sub">ตั้งค่าจำนวนชิ้น (เช่น 5, 10, 100) และราคาเหมาตามแต่ละหมวดหมู่ (ดึงหมวดหมู่อัตโนมัติจาก Categories)</div>
-            </div>
-            <div class="flex gap-2 items-center">
-              <select class="select" id="tierCatSelect" style="font-weight:700; min-width:160px;">
-                ${CATEGORIES.map(c => `<option value="${escapeHTML(c.name)}">${escapeHTML(c.name)}</option>`).join('')}
-              </select>
-              <button type="button" class="btn btn-primary btn-sm" id="btnAddTierBtn" style="font-weight:700;">+ เพิ่มสเต็ปราคาใหม่</button>
-            </div>
-          </div>
-          <div id="tierPricingContainer" style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:14px; padding:14px;"></div>
-        </div>
-
         <!-- SECTION 4.8: Order Tracking Queue Step 3 Contact Settings (Requirement 1) -->
         <div class="card">
           <div class="card-title">Order Tracking Step 3: Queue &amp; Store Contact (ปุ่มส่งรหัสออเดอร์ในหน้า Tracking)</div>
@@ -6721,7 +7125,43 @@
       toast('ลบรูปภาพมาสคอตแล้ว', 'info');
     });
 
-    // Contact Channels Dynamic List Renderer (Requirement 7)
+    // 4 Highlights Settings Manager (Requirement 2)
+    const renderHighlightsList = () => {
+      const listEl = formWrap.querySelector('#highlightsSettingsList');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      currentHighlights.forEach((h, idx) => {
+        const item = el(`
+          <div class="card" style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:14px; padding:12px 14px; margin:0;">
+            <div style="font-weight:800; font-size:12.5px; color:var(--accent-text); margin-bottom:8px;">จุดเด่น #${idx + 1}</div>
+            <div class="grid" style="grid-template-columns:1fr 1.5fr; gap:8px; margin-bottom:8px;">
+              <div class="field" style="margin:0;">
+                <label style="font-size:11px; font-weight:700;">ไอคอน / อิโมจิ</label>
+                <input class="input h-icon" value="${escapeHTML(h.icon || '')}" style="font-size:14px; padding:5px 8px;" />
+              </div>
+              <div class="field" style="margin:0;">
+                <label style="font-size:11px; font-weight:700;">หัวข้อ (Title)</label>
+                <input class="input h-title" value="${escapeHTML(h.title || '')}" style="font-size:12px; padding:5px 8px;" />
+              </div>
+            </div>
+            <div class="field" style="margin:0;">
+              <label style="font-size:11px; font-weight:700;">คำบรรยาย (Subtitle)</label>
+              <input class="input h-sub" value="${escapeHTML(h.sub || '')}" style="font-size:12px; padding:5px 8px;" />
+            </div>
+          </div>
+        `);
+
+        item.querySelector('.h-icon')?.addEventListener('input', (e) => { h.icon = e.target.value; });
+        item.querySelector('.h-title')?.addEventListener('input', (e) => { h.title = e.target.value; });
+        item.querySelector('.h-sub')?.addEventListener('input', (e) => { h.sub = e.target.value; });
+
+        listEl.appendChild(item);
+      });
+    };
+    renderHighlightsList();
+
+    // Contact Channels Dynamic List Renderer with Photo Upload (Requirement 1 & 7)
     const renderContactChannelsList = () => {
       const listEl = formWrap.querySelector('#contactChannelsSettingsList');
       if (!listEl) return;
@@ -6743,16 +7183,27 @@
               <span style="font-size:12.5px; font-weight:800; color:var(--accent-text);">ช่องทาง #${idx + 1}</span>
               <button type="button" class="btn btn-sm btn-ghost btn-del-ch" data-idx="${idx}" style="color:var(--danger); font-size:11.5px; padding:2px 6px; font-weight:700;">ลบ</button>
             </div>
-            <div class="grid" style="grid-template-columns: 90px 1.2fr 2fr; gap:10px; align-items:flex-end;">
-              <div class="field" style="margin-bottom:0;">
-                <label style="font-size:11px; font-weight:700;">ไอคอน/อิโมจิ</label>
-                <input class="input ch-icon" value="${escapeHTML(ch.icon || '💬')}" style="padding:6px 8px; font-size:14px; text-align:center;" />
+            
+            <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <!-- Photo/Icon Area -->
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="width:38px; height:38px; border-radius:8px; border:1px solid var(--border); background:var(--primary-50); display:grid; place-items:center; overflow:hidden; flex:none;">
+                  <img class="ch-img-prev" src="${escapeHTML(ch.image || '')}" style="width:100%; height:100%; object-fit:cover; display:${ch.image ? 'block' : 'none'};" onerror="this.style.display='none';" />
+                  <span class="ch-ico-fallback" style="font-size:16px; display:${ch.image ? 'none' : 'block'};">${escapeHTML(ch.icon || '💬')}</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <input type="file" class="ch-file-inp" accept="image/*" style="display:none;" />
+                  <button type="button" class="btn btn-sm btn-upload-ch-img" style="font-size:10.5px; padding:2px 6px; font-weight:700;">+ อัปโหลดรูป</button>
+                  <input class="input ch-icon" value="${escapeHTML(ch.icon || '💬')}" placeholder="อิโมจิ" style="width:70px; padding:3px 4px; font-size:12px; text-align:center;" />
+                </div>
               </div>
-              <div class="field" style="margin-bottom:0;">
+
+              <!-- Name & Link -->
+              <div class="field" style="flex:1; min-width:120px; margin-bottom:0;">
                 <label style="font-size:11px; font-weight:700;">ชื่อปุ่ม (Label) *</label>
                 <input class="input ch-name" value="${escapeHTML(ch.name || '')}" placeholder="เช่น Line OA, Facebook" style="padding:6px 10px; font-size:12px;" />
               </div>
-              <div class="field" style="margin-bottom:0;">
+              <div class="field" style="flex:1.5; min-width:160px; margin-bottom:0;">
                 <label style="font-size:11px; font-weight:700;">ลิงก์ URL *</label>
                 <input class="input ch-link" value="${escapeHTML(ch.link || '')}" placeholder="เช่น https://line.me/... หรือ https://facebook.com/..." style="padding:6px 10px; font-size:12px;" />
               </div>
@@ -6760,7 +7211,30 @@
           </div>
         `);
 
-        row.querySelector('.ch-icon')?.addEventListener('input', (e) => { ch.icon = e.target.value; });
+        const fileInp = row.querySelector('.ch-file-inp');
+        const btnUpload = row.querySelector('.btn-upload-ch-img');
+        const imgPrev = row.querySelector('.ch-img-prev');
+        const icoFallback = row.querySelector('.ch-ico-fallback');
+
+        btnUpload?.addEventListener('click', () => fileInp?.click());
+        fileInp?.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const url = await uploadProductImage(file);
+            ch.image = url;
+            if (imgPrev) { imgPrev.src = url; imgPrev.style.display = 'block'; }
+            if (icoFallback) icoFallback.style.display = 'none';
+            toast('อัปโหลดรูปภาพช่องทางติดต่อเรียบร้อย', 'success');
+          } catch (err) {
+            toast('อัปโหลดไม่สำเร็จ: ' + (err.message || err), 'error');
+          }
+        });
+
+        row.querySelector('.ch-icon')?.addEventListener('input', (e) => {
+          ch.icon = e.target.value;
+          if (icoFallback && !ch.image) icoFallback.textContent = e.target.value;
+        });
         row.querySelector('.ch-name')?.addEventListener('input', (e) => { ch.name = e.target.value; });
         row.querySelector('.ch-link')?.addEventListener('input', (e) => { ch.link = e.target.value; });
         row.querySelector('.btn-del-ch')?.addEventListener('click', () => {
@@ -6785,88 +7259,6 @@
       });
       renderContactChannelsList();
       toast('เพิ่มช่องทางติดต่อใหม่แล้ว', 'success');
-    });
-
-    // Category Tiered Pricing Manager (Requirement 3)
-    const tierCatSelect = formWrap.querySelector('#tierCatSelect');
-    const tierContainer = formWrap.querySelector('#tierPricingContainer');
-
-    const renderTierPricingForCategory = () => {
-      if (!tierCatSelect || !tierContainer) return;
-      const cat = tierCatSelect.value;
-      const tiers = currentCategoryPricing[cat] || [];
-
-      tierContainer.innerHTML = `
-        <div style="font-weight:800; font-size:13.5px; color:var(--accent-text); margin-bottom:8px;">
-          สเต็ปราคาของหมวดหมู่: <span style="color:var(--text);">${escapeHTML(cat)}</span> (${tiers.length} สเต็ป)
-        </div>
-        ${tiers.length === 0 ? `
-          <div style="text-align:center; padding:16px; background:var(--card); border:1.5px dashed var(--border); border-radius:12px; color:var(--muted); font-size:12.5px;">
-            หมวดหมู่นี้ยังไม่มีสเต็ปราคายกแพ็ค (ระบบจะคำนวณตามราคาต่อชิ้นปกติ) กดปุ่ม <strong>+ เพิ่มสเต็ปราคาใหม่</strong> ด้านบนเพื่อสร้าง
-          </div>
-        ` : `
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            ${tiers.map((t, idx) => `
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 12px;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span style="font-size:12.5px; font-weight:700; color:var(--muted);">สเต็ป ${idx + 1}:</span>
-                  <span style="font-weight:800; font-size:14px; color:var(--text);">${t.qty} ชิ้น</span>
-                  <span style="font-size:12px; color:var(--muted);">➔</span>
-                  <span style="font-weight:800; font-size:14px; color:var(--accent-text);">${money(t.price)}</span>
-                  <span style="font-size:11.5px; color:var(--muted);">(เฉลี่ย ${money(t.price / t.qty)}/ชิ้น)</span>
-                </div>
-                <button type="button" class="btn btn-sm btn-ghost btn-del-tier" data-idx="${idx}" style="color:var(--danger); font-size:12px; padding:2px 6px;">✕ ลบ</button>
-              </div>
-            `).join('')}
-          </div>
-        `}
-      `;
-
-      tierContainer.querySelectorAll('.btn-del-tier').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const idx = Number(btn.dataset.idx);
-          tiers.splice(idx, 1);
-          currentCategoryPricing[cat] = tiers;
-          renderTierPricingForCategory();
-          toast('ลบสเต็ปราคาเรียบร้อย', 'info');
-        });
-      });
-    };
-
-    tierCatSelect?.addEventListener('change', renderTierPricingForCategory);
-    renderTierPricingForCategory();
-
-    formWrap.querySelector('#btnAddTierBtn')?.addEventListener('click', () => {
-      const cat = tierCatSelect?.value;
-      if (!cat) return;
-      openModal({
-        title: `เพิ่มสเต็ปราคาสำหรับหมวดหมู่ "${cat}"`,
-        body: `
-          <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px;">
-            <div class="field">
-              <label>จำนวนชิ้น (Quantity) *</label>
-              <input class="input" type="number" id="tierQtyInput" placeholder="เช่น 5, 10, 100" min="1" />
-            </div>
-            <div class="field">
-              <label>ราคารวมสำหรับจำนวนนี้ (Price) *</label>
-              <input class="input" type="number" id="tierPriceInput" placeholder="เช่น 10, 18, 70" min="0" step="0.1" />
-            </div>
-          </div>
-        `,
-        actions: [
-          { label: 'Cancel', kind: 'ghost' },
-          { label: 'บันทึกสเต็ปราคา', kind: 'primary', onClick: () => {
-            const qty = parseInt($('#tierQtyInput')?.value, 10);
-            const price = parseFloat($('#tierPriceInput')?.value);
-            if (!qty || isNaN(price)) return toast('กรุณากรอกจำนวนและราคาให้ถูกต้อง', 'error');
-            if (!currentCategoryPricing[cat]) currentCategoryPricing[cat] = [];
-            currentCategoryPricing[cat].push({ qty, price });
-            currentCategoryPricing[cat].sort((a, b) => a.qty - b.qty);
-            renderTierPricingForCategory();
-            toast(`เพิ่มสเต็ป ${qty} ชิ้น = ${money(price)} ในหมวดหมู่ ${cat} แล้ว`, 'success');
-          }}
-        ]
-      });
     });
 
     // Bind save actions
@@ -7451,7 +7843,33 @@
       view.innerHTML = '';
       updateFloatingCartBtn();
       if (key === 'home') {
-        // 1. Carousel Container (Dynamic Slides, 1:1 Aspect Ratio at Top)
+        // 1. Mascot & Contact Channels Section (Home Page Top - Requirement 1)
+        const mascotImg = state.store.homeMascotImage || '';
+        const mascotEmoji = state.store.homeMascotEmoji || '🌸';
+        const contactTop = state.store.homeContactTopText || 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์';
+        const contactBottom = state.store.homeContactBottomText || 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.';
+        const channels = (state.store.contactChannels && state.store.contactChannels.length) ? state.store.contactChannels : DEFAULT_STORE_CONFIG.contactChannels;
+
+        const mascotContactEl = el(`
+          <div class="home-mascot-contact-card">
+            <div class="mascot-avatar-circle" title="Shop Mascot">
+              ${mascotImg ? `<img src="${escapeHTML(mascotImg)}" alt="Shop Mascot" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(mascotEmoji)}</span>` : `<span>${escapeHTML(mascotEmoji)}</span>`}
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <div style="font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:2px;">${escapeHTML(contactTop)}</div>
+              <div class="contact-channels-wrap">
+                ${channels.map(ch => {
+                  const chIcon = ch.image ? `<img src="${escapeHTML(ch.image)}" alt="" onerror="this.style.display='none';" />` : (ch.icon ? `<span>${escapeHTML(ch.icon)}</span>` : '');
+                  return `<a href="${escapeHTML(ch.link || '#')}" target="_blank" rel="noopener noreferrer" class="btn-contact-channel">${chIcon}<span>${escapeHTML(ch.name || 'ติดต่อร้าน')}</span></a>`;
+                }).join('')}
+              </div>
+              <div style="font-size:11px; color:var(--muted); font-weight:500; margin-top:2px;">${escapeHTML(contactBottom)}</div>
+            </div>
+          </div>
+        `);
+        view.appendChild(mascotContactEl);
+
+        // 2. Carousel Container (Dynamic Slides, 1:1 Aspect Ratio)
         const carouselEl = el(`
           <div>
             ${state.isAdmin ? `
@@ -7532,7 +7950,7 @@
           });
         });
 
-        // 2. Compact Hero Banner (Dynamic from state.store - supports Image or Emoji)
+        // 3. Compact Hero Banner (Dynamic from state.store - supports Image or Emoji)
         const heroGraphicHtml = (state.store.heroIconType === 'image' && state.store.heroImage)
           ? `<img src="${escapeHTML(state.store.heroImage)}" alt="Hero" style="width:38px; height:38px; object-fit:contain; border-radius:10px; display:block;" onerror="this.style.display='none';" />`
           : `<div style="font-size:28px;">${escapeHTML(state.store.heroEmoji || '')}</div>`;
@@ -7557,33 +7975,7 @@
           drawStore('products');
         });
 
-        // 2.5 Mascot & Contact Channels Section (Home Page)
-        const mascotImg = state.store.homeMascotImage || '';
-        const mascotEmoji = state.store.homeMascotEmoji || '🌸';
-        const contactTop = state.store.homeContactTopText || 'ติดต่อสอบถาม & แจ้งรหัสออเดอร์';
-        const contactBottom = state.store.homeContactBottomText || 'ตอบกลับไว ให้บริการทุกวัน 08:00 - 22:00 น.';
-        const channels = (state.store.contactChannels && state.store.contactChannels.length) ? state.store.contactChannels : DEFAULT_STORE_CONFIG.contactChannels;
-
-        const mascotContactEl = el(`
-          <div class="home-mascot-contact-card">
-            <div class="mascot-avatar-circle" title="Shop Mascot">
-              ${mascotImg ? `<img src="${escapeHTML(mascotImg)}" alt="Shop Mascot" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='grid';" /><span style="display:none;">${escapeHTML(mascotEmoji)}</span>` : `<span>${escapeHTML(mascotEmoji)}</span>`}
-            </div>
-            <div style="flex:1; min-width:200px;">
-              <div style="font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:2px;">${escapeHTML(contactTop)}</div>
-              <div class="contact-channels-wrap">
-                ${channels.map(ch => {
-                  const chIcon = ch.image ? `<img src="${escapeHTML(ch.image)}" alt="" onerror="this.style.display='none';" />` : (ch.icon ? `<span>${escapeHTML(ch.icon)}</span>` : '');
-                  return `<a href="${escapeHTML(ch.link || '#')}" target="_blank" rel="noopener noreferrer" class="btn-contact-channel">${chIcon}<span>${escapeHTML(ch.name || 'ติดต่อร้าน')}</span></a>`;
-                }).join('')}
-              </div>
-              <div style="font-size:11px; color:var(--muted); font-weight:500; margin-top:2px;">${escapeHTML(contactBottom)}</div>
-            </div>
-          </div>
-        `);
-        view.appendChild(mascotContactEl);
-
-        // 3. 4 Highlights & Popular Picks (Dynamic from state.store - supports Image or Emoji)
+        // 4. 4 Highlights & Popular Picks (Dynamic from state.store - supports Image or Emoji)
         const hList = (state.store.highlights && state.store.highlights.length) ? state.store.highlights : DEFAULT_STORE_CONFIG.highlights;
         view.appendChild(el(`
           <div class="grid stats" style="margin-top:16px">
@@ -7959,16 +8351,17 @@
             const qty = state.selected[p.id] || 0;
             const imgUrl = p.image || DEFAULT_PRODUCT_IMG;
             const mediaHtml = `<img src="${escapeHTML(imgUrl)}" alt="${escapeHTML(p.name)}" onerror="this.src='${DEFAULT_PRODUCT_IMG}';" />`;
-            const catTiers = state.store?.categoryPricing?.[p.cat] || [];
+            const rule = getProductPriceRule(p);
+            const ruleTiers = rule?.tiers || [];
 
             const tile = el(`
               <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · Lv.${p.level || 1} · ${money(p.price)}">
                 ${mediaHtml}
                 <span class="stock-dot"></span>
                 <span class="qty-badge">${qty}</span>
-                ${(catTiers && catTiers.length > 0) ? `
+                ${(ruleTiers && ruleTiers.length > 0) ? `
                   <div class="tier-chips-wrap" style="position:absolute; bottom:2px; left:2px; right:2px; display:flex; justify-content:center; gap:2px; z-index:3;">
-                    ${catTiers.slice(0,3).map(t => `<button type="button" class="tier-chip-btn" data-tid="${p.id}" data-tqty="${t.qty}" title="${t.qty} ชิ้น ${money(t.price)}">+${t.qty}</button>`).join('')}
+                    ${ruleTiers.slice(0,3).map(t => `<button type="button" class="tier-chip-btn" data-tid="${p.id}" data-tqty="${t.qty}" title="${t.qty} ชิ้น ${money(t.price)}">+${t.qty}</button>`).join('')}
                   </div>
                 ` : ''}
               </div>
