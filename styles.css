@@ -1583,65 +1583,88 @@ table.data th:last-child, table.data td:last-child{padding-right:20px}
 }
 
 /* ============================================================
-   Announcement / Marquee Ticker in Topbar / Storefront
+   Announcement / Marquee Ticker (Ultra-Smooth 60fps GPU Accelerated)
    ============================================================ */
-.marquee-ticker-wrap {
-  flex: 1;
-  max-width: 520px;
+.marquee-ticker-wrap, .home-marquee-banner {
   display: flex;
   align-items: center;
+  gap: 10px;
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: 9999px;
   height: 42px;
-  padding: 0 12px 0 6px;
+  padding: 0 14px 0 8px;
   overflow: hidden;
   position: relative;
   box-shadow: var(--shadow-soft);
+  contain: paint;
 }
 
-.ticker-badge {
+.marquee-ticker-wrap {
+  flex: 1;
+  max-width: 580px;
+}
+
+.home-marquee-banner {
+  margin-bottom: 14px;
+  width: 100%;
+}
+
+.ticker-icon-badge {
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 800;
-  color: var(--accent-text);
+  display: inline-grid;
+  place-items: center;
+  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   background: var(--primary-50);
-  padding: 4px 10px;
-  border-radius: 9999px;
-  margin-right: 8px;
   border: 1px solid var(--border);
   z-index: 2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
-.ticker-content-track {
+.ticker-track-smooth {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
   position: relative;
   display: flex;
   align-items: center;
+  mask-image: linear-gradient(to right, transparent 0%, black 15px, black calc(100% - 15px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15px, black calc(100% - 15px), transparent 100%);
 }
 
-.ticker-text-marquee {
-  display: inline-block;
+.ticker-marquee-inner {
+  display: inline-flex;
   white-space: nowrap;
-  padding-left: 100%;
-  animation: marqueeTicker 16s linear infinite;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
+  flex-shrink: 0;
+  animation: smoothMarqueeLoop 18s linear infinite;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
-.ticker-text-marquee:hover {
+.ticker-marquee-inner:hover {
   animation-play-state: paused;
 }
 
-@keyframes marqueeTicker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+@keyframes smoothMarqueeLoop {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.ticker-marquee-text {
+  display: inline-flex;
+  align-items: center;
+  padding-right: 80px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.2px;
 }
 
 /* ============================================================

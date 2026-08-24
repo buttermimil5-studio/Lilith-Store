@@ -568,13 +568,12 @@
       const text = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
       searchWrap.className = 'search-wrap marquee-ticker-wrap';
       searchWrap.innerHTML = `
-        <div class="ticker-badge" style="flex:none; margin:0 8px 0 0; background:var(--primary-50); color:var(--accent-text); font-weight:800; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px;">
-          ${escapeHTML(icon)} <span>ประกาศ</span>
-        </div>
-        <div class="ticker-content-track" style="flex:1; min-width:0; overflow:hidden; display:flex; align-items:center;">
-          <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();" style="font-size:13px; font-weight:700; color:var(--text); width:100%; display:block; line-height:1.2;">
-            ${escapeHTML(text)}
-          </marquee>
+        <div class="ticker-icon-badge">${escapeHTML(icon)}</div>
+        <div class="ticker-track-smooth">
+          <div class="ticker-marquee-inner">
+            <span class="ticker-marquee-text">${escapeHTML(text)}</span>
+            <span class="ticker-marquee-text">${escapeHTML(text)}</span>
+          </div>
         </div>
       `;
       searchWrap.style.cursor = 'default';
@@ -7963,14 +7962,13 @@
         const annIcon = state.store.announcementIcon || '📢';
         const annText = state.store.announcementText || `ยินดีต้อนรับสู่ ${state.store.name || 'Lilith store'} ไอเทมเฮย์เดย์ครบวงจร ส่งไว ตอบแชท 24 ชม.`;
         const annEl = el(`
-          <div class="home-marquee-banner" style="display:flex; align-items:center; background:var(--card); border:1.5px solid var(--border); border-radius:999px; height:42px; padding:0 14px 0 6px; margin-bottom:14px; box-shadow:var(--shadow-soft); overflow:hidden;">
-            <div class="ticker-badge" style="margin:0 10px 0 0; flex:none; background:var(--primary-50); color:var(--accent-text); font-weight:800; font-size:11.5px; padding:3px 10px; border-radius:999px; border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px;">
-              ${escapeHTML(annIcon)} <span>ประกาศ</span>
-            </div>
-            <div style="flex:1; min-width:0; overflow:hidden; display:flex; align-items:center;">
-              <marquee behavior="scroll" direction="left" scrollamount="6" onmouseover="this.stop();" onmouseout="this.start();" style="font-size:13px; font-weight:700; color:var(--text); width:100%; display:block; line-height:1.2;">
-                ${escapeHTML(annText)}
-              </marquee>
+          <div class="home-marquee-banner">
+            <div class="ticker-icon-badge">${escapeHTML(annIcon)}</div>
+            <div class="ticker-track-smooth">
+              <div class="ticker-marquee-inner">
+                <span class="ticker-marquee-text">${escapeHTML(annText)}</span>
+                <span class="ticker-marquee-text">${escapeHTML(annText)}</span>
+              </div>
             </div>
           </div>
         `);
