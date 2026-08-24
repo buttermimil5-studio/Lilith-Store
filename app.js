@@ -377,6 +377,7 @@
     stickyNoteBorder: '#EFE6C7',
     stickyNoteBottomBorder: '#DFD2A8',
     stickyNotePinColor: '#EFA6C1',
+    stickyNoteTextColor: '#3E3426',
     pin: '123456',
     deletePin: '888888'
   };
@@ -4202,8 +4203,9 @@
               <h1 class="page-title">Setting Price (ตั้งค่าราคา &amp; สเต็ปตามเลเวลและหมวดหมู่)</h1>
               <div class="page-sub">จัดการกำหนดสเต็ปราคาสินค้าขายส่งตามหมวดหมู่และช่วงเลเวล (เช่น อาหารสัตว์ Lv. 1-75, Lv. 76-256 หรือ All Level)</div>
             </div>
-            <button class="btn btn-primary" id="btnAddNewRuleBox" style="font-weight:700;">
-              + เพิ่มกล่องราคาใหม่ (+ Add Price Rule Box)
+            <button class="btn btn-primary" id="btnAddNewRuleBox" style="font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>เพิ่มกล่องราคาใหม่ (+ Add Price Rule Box)</span>
             </button>
           </div>
         </div>
@@ -4213,7 +4215,7 @@
       const body = el(`
         <div style="display:flex; flex-direction:column; gap:16px;">
           <div style="font-weight:800; font-size:14px; color:var(--accent-text);">
-            กล่องสเต็ปราคาที่เปิดใช้งาน (${currentRules.length} กล่อง)
+            กล่องราคาที่เปิดใช้งาน (${currentRules.length} กล่อง)
           </div>
 
           ${currentRules.length === 0 ? `
@@ -4225,45 +4227,68 @@
             <div class="pricing-rules-grid">
               ${currentRules.map((rule, rIdx) => {
                 const tiers = rule.tiers || [];
+                const stepQty = rule.stepQty || 1;
                 return `
                   <div class="pricing-rule-card" data-ridx="${rIdx}">
                     <!-- Card Header -->
                     <div class="flex items-center" style="justify-content:space-between; flex-wrap:wrap; gap:8px;">
                       <div class="flex items-center gap-2" style="flex-wrap:wrap;">
-                        <span class="badge" style="background:var(--primary-100); color:var(--accent-text); font-weight:800; font-size:12px; padding:4px 10px;">
-                          📁 ${escapeHTML(rule.category || 'ทุกหมวดหมู่')}
+                        <span class="badge" style="background:var(--primary-100); color:var(--accent-text); font-weight:800; font-size:12px; padding:4px 10px; display:inline-flex; align-items:center; gap:5px;">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span>${escapeHTML(rule.category || 'ทุกหมวดหมู่')}</span>
                         </span>
-                        <span class="badge ${rule.levelDisplay === 'All Level' || rule.levelDisplay === 'ทุกเลเวล' ? 'info' : 'success'}" style="font-weight:800; font-size:12px; padding:4px 10px;">
-                          🎯 ${escapeHTML(rule.levelDisplay || 'All Level')}
+                        <span class="badge ${rule.levelDisplay === 'All Level' || rule.levelDisplay === 'ทุกเลเวล' ? 'info' : 'success'}" style="font-weight:800; font-size:12px; padding:4px 10px; display:inline-flex; align-items:center; gap:5px;">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                          <span>${escapeHTML(rule.levelDisplay || 'All Level')}</span>
                         </span>
                       </div>
                       <div class="flex items-center gap-1">
-                        <button type="button" class="btn btn-sm btn-ghost btn-edit-rule" data-ridx="${rIdx}" title="แก้ไขข้อมูลกล่อง" style="font-size:11.5px; padding:3px 7px;">✏️</button>
-                        <button type="button" class="btn btn-sm btn-ghost btn-del-rule" data-ridx="${rIdx}" title="ลบกล่องนี้" style="color:var(--danger); font-size:11.5px; padding:3px 7px;">🗑️</button>
+                        <button type="button" class="btn btn-sm btn-ghost btn-edit-rule" data-ridx="${rIdx}" title="แก้ไขข้อมูลกล่อง" style="font-size:12px; padding:4px 8px; color:var(--text);">
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-ghost btn-del-rule" data-ridx="${rIdx}" title="ลบกล่องนี้" style="color:var(--danger); font-size:12px; padding:4px 8px;">
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
                       </div>
                     </div>
 
-                    <!-- Tiers List -->
+                    <!-- Step Quantity Increment Setting for Item Clicks -->
+                    <div style="display:flex; align-items:center; justify-content:space-between; background:var(--primary-50); border:1px solid var(--border); border-radius:10px; padding:7px 12px; margin:8px 0;">
+                      <div style="display:flex; align-items:center; gap:6px;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                        <span style="font-size:12px; font-weight:700; color:var(--text);">กดคลิกเพิ่มทีละ:</span>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:6px;">
+                        <input type="number" class="input rule-step-qty" data-ridx="${rIdx}" value="${stepQty}" min="1" style="width:64px; padding:3px 6px; font-size:12px; font-weight:800; text-align:center;" />
+                        <span style="font-size:11.5px; color:var(--muted); font-weight:600;">ชิ้น / คลิก</span>
+                      </div>
+                    </div>
+
+                    <!-- Tiers List (Clean, No "ช่วงราคา" or "ช่องที่" words) -->
                     <div style="display:flex; flex-direction:column; gap:6px; margin:4px 0;">
-                      <div class="flex items-center" style="justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted);">
-                        <span>ช่วงราคา (${tiers.length} ช่อง)</span>
-                        <button type="button" class="btn btn-sm btn-ghost btn-add-tier-slot" data-ridx="${rIdx}" style="font-size:11.5px; font-weight:700; color:var(--primary-600); padding:1px 4px;">+ เพิ่มช่องราคา</button>
+                      <div class="flex items-center" style="justify-content:space-between; margin:4px 0 2px;">
+                        <span style="font-size:12px; font-weight:800; color:var(--accent-text);">รายการราคา (${tiers.length})</span>
+                        <button type="button" class="btn btn-sm btn-ghost btn-add-tier-slot" data-ridx="${rIdx}" style="font-size:12px; font-weight:700; color:var(--primary-600); padding:2px 8px; border:1px solid var(--border); border-radius:8px; display:inline-flex; align-items:center; gap:4px;">
+                          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          <span>เพิ่มราคา</span>
+                        </button>
                       </div>
                       
                       ${tiers.length === 0 ? `
                         <div style="font-size:12px; color:var(--muted); text-align:center; padding:10px; background:var(--primary-50); border-radius:10px;">
-                          ยังไม่มีช่วงราคา (กดปุ่ม + เพิ่มช่องราคา)
+                          ยังไม่มีราคาที่กำหนด (กดปุ่ม เพิ่มราคา ด้านบน)
                         </div>
                       ` : tiers.map((t, tIdx) => `
-                        <div class="pricing-tier-row">
-                          <div style="display:flex; align-items:center; gap:8px;">
-                            <span style="font-size:11px; font-weight:700; color:var(--muted);">ช่องที่ ${tIdx + 1}:</span>
+                        <div class="pricing-tier-row" style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:10px; background:var(--card); border:1px solid var(--border);">
+                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             <strong style="font-size:13.5px; color:var(--text);">${t.qty} ชิ้น</strong>
-                            <span style="color:var(--muted); font-size:11px;">➔</span>
+                            <span style="color:var(--muted); font-size:12px;">→</span>
                             <strong style="font-size:13.5px; color:var(--accent-text);">${money(t.price)}</strong>
                             <span style="font-size:11px; color:var(--muted); font-weight:500;">(${money(Number(t.price)/Number(t.qty))}/ชิ้น)</span>
                           </div>
-                          <button type="button" class="btn btn-sm btn-ghost btn-del-tier-slot" data-ridx="${rIdx}" data-tidx="${tIdx}" style="color:var(--danger); font-size:11px; padding:1px 5px;">✕</button>
+                          <button type="button" class="btn btn-sm btn-ghost btn-del-tier-slot" data-ridx="${rIdx}" data-tidx="${tIdx}" style="color:var(--danger); font-size:12px; padding:2px 6px;" title="ลบ">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          </button>
                         </div>
                       `).join('')}
                     </div>
@@ -4284,13 +4309,26 @@
         syncStoreSettingsAcrossDevices();
       };
 
+      // Step Quantity Input Change Listeners
+      body.querySelectorAll('.rule-step-qty').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+          const rIdx = Number(inp.dataset.ridx);
+          const val = parseInt(e.target.value, 10);
+          if (currentRules[rIdx]) {
+            currentRules[rIdx].stepQty = (!val || val < 1) ? 1 : val;
+            persistRules();
+            toast(`ตั้งค่าเพิ่มทีละ ${currentRules[rIdx].stepQty} ชิ้น/คลิก เรียบร้อย`, 'success');
+          }
+        });
+      });
+
       // Add Rule Box
       head.querySelector('#btnAddNewRuleBox')?.addEventListener('click', () => {
         let selectedCat = CATEGORIES[0]?.name || 'Bakery';
         let levelType = 'range'; // 'range' or 'all'
 
         openModal({
-          title: 'เพิ่มกล่องสเต็ปราคาใหม่ (+ Add Price Rule Box)',
+          title: 'เพิ่มกล่องราคาใหม่ (+ Add Price Rule Box)',
           body: `
             <div style="display:flex; flex-direction:column; gap:14px;">
               <div class="field">
@@ -4319,8 +4357,9 @@
                 </div>
               </div>
 
-              <div style="font-size:12px; color:var(--muted); background:var(--primary-50); padding:10px; border-radius:10px;">
-                💡 <em>เมื่อสร้างกล่องแล้ว สามารถกด <strong>+ เพิ่มช่องราคา</strong> เพื่อเพิ่มราคาตามจำนวน เช่น 10 ชิ้น 2 บาท, 50 ชิ้น 8 บาท, 100 ชิ้น 15 บาท ได้ไม่จำกัด</em>
+              <div class="field">
+                <label style="font-size:12px; font-weight:700;">จำนวนที่เพิ่มต่อการกดคลิก 1 ครั้ง (Step Quantity)</label>
+                <input class="input" type="number" id="ruleStepQtyInput" value="1" min="1" placeholder="เช่น 1, 10, 50" />
               </div>
             </div>
           `,
@@ -4335,6 +4374,7 @@
                 const min = isRange ? parseInt($('#ruleMinLevel')?.value || 1, 10) : 1;
                 const max = isRange ? parseInt($('#ruleMaxLevel')?.value || 99999, 10) : 99999;
                 const lvlDisplay = isRange ? `${min} - ${max}` : 'All Level';
+                const stepQty = parseInt($('#ruleStepQtyInput')?.value, 10) || 1;
 
                 currentRules.push({
                   id: Date.now(),
@@ -4342,6 +4382,7 @@
                   levelDisplay: lvlDisplay,
                   minLevel: min,
                   maxLevel: max,
+                  stepQty: stepQty,
                   tiers: [
                     { qty: 10, price: 2 },
                     { qty: 50, price: 8 },
@@ -4416,6 +4457,11 @@
                     </div>
                   </div>
                 </div>
+
+                <div class="field">
+                  <label style="font-size:12px; font-weight:700;">จำนวนที่เพิ่มต่อการกดคลิก 1 ครั้ง (Step Quantity)</label>
+                  <input class="input" type="number" id="editRuleStepQtyInput" value="${rule.stepQty || 1}" min="1" placeholder="เช่น 1, 10, 50" />
+                </div>
               </div>
             `,
             actions: [
@@ -4429,11 +4475,13 @@
                   const min = isRange ? parseInt($('#editRuleMinLevel')?.value || 1, 10) : 1;
                   const max = isRange ? parseInt($('#editRuleMaxLevel')?.value || 99999, 10) : 99999;
                   const lvlDisplay = isRange ? `${min} - ${max}` : 'All Level';
+                  const stepQty = parseInt($('#editRuleStepQtyInput')?.value, 10) || 1;
 
                   rule.category = cat;
                   rule.levelDisplay = lvlDisplay;
                   rule.minLevel = min;
                   rule.maxLevel = max;
+                  rule.stepQty = stepQty;
 
                   persistRules();
                   render();
@@ -4478,7 +4526,7 @@
         });
       });
 
-      // Add Tier Slot
+      // Add Price Slot (Two simple boxes: Quantity and Price)
       body.querySelectorAll('.btn-add-tier-slot').forEach(btn => {
         btn.addEventListener('click', () => {
           const rIdx = Number(btn.dataset.ridx);
@@ -4486,15 +4534,15 @@
           if (!rule) return;
 
           openModal({
-            title: `เพิ่มช่วงราคา: ${rule.category} (${rule.levelDisplay})`,
+            title: `เพิ่มราคา: ${rule.category} (${rule.levelDisplay})`,
             body: `
               <div class="grid" style="grid-template-columns:1fr 1fr; gap:12px;">
                 <div class="field">
-                  <label style="font-size:12px; font-weight:700;">จำนวนชิ้น (Quantity) *</label>
-                  <input class="input" type="number" id="inpNewTierQty" placeholder="เช่น 10, 50, 100" min="1" />
+                  <label style="font-size:12px; font-weight:700;">จำนวนชิ้น (ชิ้น) *</label>
+                  <input class="input" type="number" id="inpNewTierQty" placeholder="เช่น 10, 50, 100" min="1" autofocus />
                 </div>
                 <div class="field">
-                  <label style="font-size:12px; font-weight:700;">ราคารวมสำหรับจำนวนนี้ (Price) *</label>
+                  <label style="font-size:12px; font-weight:700;">ราคา (บาท) *</label>
                   <input class="input" type="number" id="inpNewTierPrice" placeholder="เช่น 2, 8, 15" min="0" step="0.01" />
                 </div>
               </div>
@@ -4502,7 +4550,7 @@
             actions: [
               { label: 'Cancel', kind: 'ghost' },
               {
-                label: 'เพิ่มช่องราคา',
+                label: 'บันทึกราคา',
                 kind: 'primary',
                 onClick: () => {
                   const qty = parseInt($('#inpNewTierQty')?.value, 10);
@@ -4534,7 +4582,7 @@
           rule.tiers.splice(tIdx, 1);
           persistRules();
           render();
-          toast('ลบช่วงราคาเรียบร้อย', 'info');
+          toast('ลบราคาเรียบร้อย', 'info');
         });
       });
     };
@@ -5810,10 +5858,9 @@
           </div>
         </div>
 
-        <!-- SECTION 3: 4 Highlights / Trust Badges -->
+        <!-- SECTION 3: 4 Highlights Badges -->
         <div class="card">
-          <div class="card-title">4 Highlights Badges (จุดเด่น 4 ช่องบนหน้าแรก)</div>
-          <div class="card-sub">แก้ไขไอคอน (รูปภาพหรืออิโมจิ), ข้อความ และคำบรรยายของจุดเด่น 4 การ์ดบนหน้า Home</div>
+          <div class="card-title">4 Highlights Badges ( 4 ช่องบนหน้าโฮม)</div>
           <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-top:12px;" id="highlightsSettingsList"></div>
         </div>
 
@@ -6188,6 +6235,13 @@
                     <input class="input" id="setStickyPinHex" value="${state.store.stickyNotePinColor || '#EFA6C1'}" style="font-size:12px; padding:6px 8px; font-weight:700; font-family:monospace;" />
                   </div>
                 </div>
+                <div class="field" style="grid-column:1 / -1; margin-bottom:0;">
+                  <label style="font-size:11.5px; font-weight:700;">สีฟอนต์ / ตัวหนังสือ (Font Color) *</label>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="color" id="setStickyTextColor" value="${state.store.stickyNoteTextColor || '#3E3426'}" style="width:36px; height:36px; border:none; border-radius:8px; cursor:pointer; background:transparent;" />
+                    <input class="input" id="setStickyTextColorHex" value="${state.store.stickyNoteTextColor || '#3E3426'}" style="font-size:12px; padding:6px 8px; font-weight:700; font-family:monospace; max-width:140px;" />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -6195,7 +6249,7 @@
             <div style="background:var(--bg); border:1.5px solid var(--border); border-radius:18px; padding:18px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
               <div style="font-weight:700; font-size:13px; color:var(--muted); margin-bottom:18px; text-align:center;">ตัวอย่างสติกกี้โน้ตแบบสด (Live Preview)</div>
               
-              <div id="stickyLivePreviewCard" class="review-card pinned-sticky tilt-left" style="max-width:280px; width:100%; pointer-events:none; background:${state.store.stickyNoteBg || '#FFFDF2'}; border-color:${state.store.stickyNoteBorder || '#EFE6C7'}; border-bottom-color:${state.store.stickyNoteBottomBorder || '#DFD2A8'};">
+              <div id="stickyLivePreviewCard" class="review-card pinned-sticky tilt-left" style="max-width:280px; width:100%; pointer-events:none; background:${state.store.stickyNoteBg || '#FFFDF2'}; border-color:${state.store.stickyNoteBorder || '#EFE6C7'}; border-bottom-color:${state.store.stickyNoteBottomBorder || '#DFD2A8'}; color:${state.store.stickyNoteTextColor || '#3E3426'};">
                 <div class="sticky-pin-badge" id="prevStickyPinBadge" style="background:${state.store.stickyNotePinColor || '#EFA6C1'};">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 17v5M5 17h14M7 17l1-9h8l1 9M9 8V3h6v5"/></svg>
                   <span>Pinned Note</span>
@@ -6203,12 +6257,12 @@
                 <div class="review-head">
                   <div class="avatar" style="font-size:13px; font-weight:800;">AW</div>
                   <div style="flex:1;">
-                    <div class="review-name" style="font-size:14px; font-weight:700; color:var(--text);">Anna W.</div>
+                    <div class="review-name" id="prevStickyReviewName" style="font-size:14px; font-weight:700; color:${state.store.stickyNoteTextColor || '#3E3426'};">Anna W.</div>
                     <div class="review-date">Today</div>
                   </div>
                   <div class="stars">${renderHearts(5)}</div>
                 </div>
-                <div class="review-text" style="font-size:13px; color:var(--text); line-height:1.5;">เค้กนุ่มละมุนมากค่ะ บรรยากาศร้านและแพ็กเกจน่ารักที่สุดเลย 💕</div>
+                <div class="review-text" id="prevStickyReviewText" style="font-size:13px; color:${state.store.stickyNoteTextColor || '#3E3426'}; line-height:1.5;">เค้กนุ่มละมุนมากค่ะ บรรยากาศร้านและแพ็กเกจน่ารักที่สุดเลย 💕</div>
               </div>
             </div>
           </div>
@@ -7125,7 +7179,7 @@
       toast('ลบรูปภาพมาสคอตแล้ว', 'info');
     });
 
-    // 4 Highlights Settings Manager (Requirement 2)
+    // 4 Highlights Settings Manager (Requirement 6)
     const renderHighlightsList = () => {
       const listEl = formWrap.querySelector('#highlightsSettingsList');
       if (!listEl) return;
@@ -7134,25 +7188,69 @@
       currentHighlights.forEach((h, idx) => {
         const item = el(`
           <div class="card" style="background:var(--primary-50); border:1.5px solid var(--border); border-radius:14px; padding:12px 14px; margin:0;">
-            <div style="font-weight:800; font-size:12.5px; color:var(--accent-text); margin-bottom:8px;">จุดเด่น #${idx + 1}</div>
-            <div class="grid" style="grid-template-columns:1fr 1.5fr; gap:8px; margin-bottom:8px;">
-              <div class="field" style="margin:0;">
-                <label style="font-size:11px; font-weight:700;">ไอคอน / อิโมจิ</label>
-                <input class="input h-icon" value="${escapeHTML(h.icon || '')}" style="font-size:14px; padding:5px 8px;" />
+            <div style="font-weight:800; font-size:12.5px; color:var(--accent-text); margin-bottom:8px;">ช่อง #${idx + 1}</div>
+            
+            <!-- Graphic / Icon / Photo Upload -->
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+              <div style="width:40px; height:40px; border-radius:10px; overflow:hidden; border:1.5px dashed var(--border); background:var(--card); display:grid; place-items:center; flex:none;">
+                <img class="h-img-prev" src="${escapeHTML(h.image || '')}" style="width:100%; height:100%; object-fit:contain; display:${h.image ? 'block' : 'none'};" onerror="this.style.display='none';" />
+                <span class="h-ico-fallback" style="font-size:18px; display:${h.image ? 'none' : 'block'};">${escapeHTML(h.icon || '🌸')}</span>
               </div>
-              <div class="field" style="margin:0;">
-                <label style="font-size:11px; font-weight:700;">หัวข้อ (Title)</label>
-                <input class="input h-title" value="${escapeHTML(h.title || '')}" style="font-size:12px; padding:5px 8px;" />
+              <div style="flex:1;">
+                <input type="file" class="h-file-inp" accept="image/*" style="display:none;" />
+                <div class="flex gap-2 items-center" style="margin-bottom:4px;">
+                  <button type="button" class="btn btn-sm btn-upload-h-img" style="font-size:11px; padding:3px 8px; font-weight:700;">+ อัปโหลดรูป</button>
+                  <button type="button" class="btn btn-sm btn-ghost btn-clear-h-img" style="font-size:11px; padding:3px 6px; color:var(--danger); display:${h.image ? 'inline-block' : 'none'};">ลบรูป</button>
+                </div>
+                <input class="input h-icon" value="${escapeHTML(h.icon || '')}" placeholder="หรือใส่อิโมจิ" style="font-size:12px; padding:3px 6px; width:90px;" />
               </div>
+            </div>
+
+            <div class="field" style="margin-bottom:8px;">
+              <label style="font-size:11px; font-weight:700;">หัวข้อ (Title)</label>
+              <input class="input h-title" value="${escapeHTML(h.title || '')}" style="font-size:12px; padding:6px 8px;" />
             </div>
             <div class="field" style="margin:0;">
               <label style="font-size:11px; font-weight:700;">คำบรรยาย (Subtitle)</label>
-              <input class="input h-sub" value="${escapeHTML(h.sub || '')}" style="font-size:12px; padding:5px 8px;" />
+              <input class="input h-sub" value="${escapeHTML(h.sub || '')}" style="font-size:12px; padding:6px 8px;" />
             </div>
           </div>
         `);
 
-        item.querySelector('.h-icon')?.addEventListener('input', (e) => { h.icon = e.target.value; });
+        const fileInp = item.querySelector('.h-file-inp');
+        const btnUpload = item.querySelector('.btn-upload-h-img');
+        const btnClear = item.querySelector('.btn-clear-h-img');
+        const imgPrev = item.querySelector('.h-img-prev');
+        const icoFallback = item.querySelector('.h-ico-fallback');
+
+        btnUpload?.addEventListener('click', () => fileInp?.click());
+        fileInp?.addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const url = await uploadProductImage(file);
+            h.image = url;
+            h.iconType = 'image';
+            if (imgPrev) { imgPrev.src = url; imgPrev.style.display = 'block'; }
+            if (icoFallback) icoFallback.style.display = 'none';
+            renderHighlightsList();
+            toast(`อัปโหลดรูปภาพสำหรับช่อง #${idx + 1} เรียบร้อย`, 'success');
+          } catch (err) {
+            toast('อัปโหลดไม่สำเร็จ: ' + (err.message || err), 'error');
+          }
+        });
+
+        btnClear?.addEventListener('click', () => {
+          h.image = '';
+          h.iconType = 'emoji';
+          renderHighlightsList();
+          toast(`ลบรูปภาพช่อง #${idx + 1} แล้ว`, 'info');
+        });
+
+        item.querySelector('.h-icon')?.addEventListener('input', (e) => {
+          h.icon = e.target.value;
+          if (icoFallback && !h.image) icoFallback.textContent = e.target.value;
+        });
         item.querySelector('.h-title')?.addEventListener('input', (e) => { h.title = e.target.value; });
         item.querySelector('.h-sub')?.addEventListener('input', (e) => { h.sub = e.target.value; });
 
@@ -7344,6 +7442,7 @@
       state.store.stickyNoteBorder = formWrap.querySelector('#setStickyBorder')?.value || '#EFE6C7';
       state.store.stickyNoteBottomBorder = formWrap.querySelector('#setStickyBottom')?.value || '#DFD2A8';
       state.store.stickyNotePinColor = formWrap.querySelector('#setStickyPin')?.value || '#EFA6C1';
+      state.store.stickyNoteTextColor = formWrap.querySelector('#setStickyTextColor')?.value || formWrap.querySelector('#setStickyTextColorHex')?.value || '#3E3426';
       applyStickyNoteTheme();
 
       // Save QR Code Payment Image
@@ -7417,23 +7516,31 @@
     const sBottomHex = formWrap.querySelector('#setStickyBottomHex');
     const sPinInp = formWrap.querySelector('#setStickyPin');
     const sPinHex = formWrap.querySelector('#setStickyPinHex');
+    const sTextInp = formWrap.querySelector('#setStickyTextColor');
+    const sTextHex = formWrap.querySelector('#setStickyTextColorHex');
 
     const updateStickyPreview = () => {
       const prevCard = formWrap.querySelector('#stickyLivePreviewCard');
       const prevPin = formWrap.querySelector('#prevStickyPinBadge');
+      const prevName = formWrap.querySelector('#prevStickyReviewName');
+      const prevTxt = formWrap.querySelector('#prevStickyReviewText');
       const bg = sBgInp ? sBgInp.value : '#FFFDF2';
       const border = sBorderInp ? sBorderInp.value : '#EFE6C7';
       const bottom = sBottomInp ? sBottomInp.value : '#DFD2A8';
       const pin = sPinInp ? sPinInp.value : '#EFA6C1';
+      const text = sTextInp ? sTextInp.value : '#3E3426';
 
       if (prevCard) {
         prevCard.style.background = bg;
         prevCard.style.borderColor = border;
         prevCard.style.borderBottomColor = bottom;
+        prevCard.style.color = text;
       }
       if (prevPin) {
         prevPin.style.background = pin;
       }
+      if (prevName) prevName.style.color = text;
+      if (prevTxt) prevTxt.style.color = text;
     };
 
     // Color pickers <-> Hex sync
@@ -7455,6 +7562,7 @@
     syncColor(sBorderInp, sBorderHex);
     syncColor(sBottomInp, sBottomHex);
     syncColor(sPinInp, sPinHex);
+    syncColor(sTextInp, sTextHex);
 
     // Preset buttons
     formWrap.querySelectorAll('.btn-sticky-preset').forEach(btn => {
@@ -7470,6 +7578,10 @@
           if (sBottomHex) sBottomHex.value = p.bottom;
           if (sPinInp) sPinInp.value = p.pin;
           if (sPinHex) sPinHex.value = p.pin;
+          if (p.text) {
+            if (sTextInp) sTextInp.value = p.text;
+            if (sTextHex) sTextHex.value = p.text;
+          }
           updateStickyPreview();
           toast(`เลือกโทนสีสติกกี้โน้ต: ${p.name}`, 'info');
         }
@@ -8046,8 +8158,10 @@
             const p = PRODUCTS.find(x => String(x.id) === String(pid));
             if (!p) return;
             if (p.stock === 0) return toast(`${p.name} สินค้าหมด`, 'error');
-            state.selected[p.id] = (state.selected[p.id] || 0) + 1;
-            toast(`เพิ่ม ${p.name} ลงในตะกร้าแล้ว`, 'success');
+            const rule = getProductPriceRule(p);
+            const clickStep = (rule && rule.stepQty) ? rule.stepQty : 1;
+            state.selected[p.id] = (state.selected[p.id] || 0) + clickStep;
+            toast(`เพิ่ม ${p.name} (+${clickStep}) ลงในตะกร้าแล้ว`, 'success');
             updateFloatingCartBtn();
             drawStore('home');
           });
@@ -8371,7 +8485,8 @@
             tile.addEventListener('click', (e) => {
               if (e.target.closest('.tier-chip-btn')) return;
               if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
-              state.selected[p.id] = (state.selected[p.id] || 0) + 1;
+              const clickStep = (rule && rule.stepQty) ? rule.stepQty : 1;
+              state.selected[p.id] = (state.selected[p.id] || 0) + clickStep;
               tile.classList.add('selected');
               const badge = tile.querySelector('.qty-badge');
               if (badge) badge.textContent = state.selected[p.id];
@@ -9418,20 +9533,20 @@
 
   const STICKY_NOTE_PALETTES = {
     // 6 โทนสีสว่างพาสเทล (Light Pastel Presets)
-    yellow: { name: 'Butter Yellow (เหลืองเนย)', category: 'light', bg: '#FFFDF2', border: '#EFE6C7', bottom: '#DFD2A8', pin: '#EFA6C1' },
-    pink: { name: 'Blossom Pink (ชมพูซากุระ)', category: 'light', bg: '#FFF5F8', border: '#FADBE6', bottom: '#F2BACF', pin: '#E58B94' },
-    green: { name: 'Matcha Green (เขียวมัทฉะ)', category: 'light', bg: '#F4FAF6', border: '#D6EFE0', bottom: '#BBE2CB', pin: '#7CC59A' },
-    blue: { name: 'Sky Blue (ฟ้าพาสเทล)', category: 'light', bg: '#F2F7FD', border: '#D4E5FA', bottom: '#B5D4F6', pin: '#8BB6E8' },
-    purple: { name: 'Lavender (ม่วงลาเวนเดอร์)', category: 'light', bg: '#FAF5FD', border: '#EDDCFB', bottom: '#DFC6F7', pin: '#C79EE5' },
-    peach: { name: 'Peach Apricot (ส้มพีช)', category: 'light', bg: '#FFF8F2', border: '#FCE6D6', bottom: '#F7CFB5', pin: '#F0B265' },
+    yellow: { name: 'Butter Yellow (เหลืองเนย)', category: 'light', bg: '#FFFDF2', border: '#EFE6C7', bottom: '#DFD2A8', pin: '#EFA6C1', text: '#3E3426' },
+    pink: { name: 'Blossom Pink (ชมพูซากุระ)', category: 'light', bg: '#FFF5F8', border: '#FADBE6', bottom: '#F2BACF', pin: '#E58B94', text: '#3E242C' },
+    green: { name: 'Matcha Green (เขียวมัทฉะ)', category: 'light', bg: '#F4FAF6', border: '#D6EFE0', bottom: '#BBE2CB', pin: '#7CC59A', text: '#1F3528' },
+    blue: { name: 'Sky Blue (ฟ้าพาสเทล)', category: 'light', bg: '#F2F7FD', border: '#D4E5FA', bottom: '#B5D4F6', pin: '#8BB6E8', text: '#1B2F4A' },
+    purple: { name: 'Lavender (ม่วงลาเวนเดอร์)', category: 'light', bg: '#FAF5FD', border: '#EDDCFB', bottom: '#DFC6F7', pin: '#C79EE5', text: '#351F47' },
+    peach: { name: 'Peach Apricot (ส้มพีช)', category: 'light', bg: '#FFF8F2', border: '#FCE6D6', bottom: '#F7CFB5', pin: '#F0B265', text: '#422C1A' },
 
     // 6 โทนสีมืดพรีเมียม (Dark Night Presets)
-    dark_charcoal: { name: 'Dark Charcoal (ชาร์โคลมืด)', category: 'dark', bg: '#1E1B22', border: '#3A3342', bottom: '#4E4559', pin: '#EFA6C1' },
-    dark_espresso: { name: 'Dark Espresso (เอสเปรสโซเข้ม)', category: 'dark', bg: '#221812', border: '#453024', bottom: '#5A3E2F', pin: '#F0B265' },
-    dark_emerald: { name: 'Dark Forest (เขียวป่ามืด)', category: 'dark', bg: '#112218', border: '#254431', bottom: '#325C43', pin: '#7CC59A' },
-    dark_navy: { name: 'Midnight Navy (มิดไนท์เนวี)', category: 'dark', bg: '#121D2C', border: '#243954', bottom: '#314D70', pin: '#8BB6E8' },
-    dark_plum: { name: 'Plum Berry (เบอร์รี่พลัม)', category: 'dark', bg: '#241420', border: '#47273F', bottom: '#5C3352', pin: '#F8BFD4' },
-    dark_violet: { name: 'Royal Violet (ไวโอเล็ตเข้ม)', category: 'dark', bg: '#1E122A', border: '#3C2454', bottom: '#503070', pin: '#D6BEE9' }
+    dark_charcoal: { name: 'Dark Charcoal (ชาร์โคลมืด)', category: 'dark', bg: '#1E1B22', border: '#3A3342', bottom: '#4E4559', pin: '#EFA6C1', text: '#F6EEFB' },
+    dark_espresso: { name: 'Dark Espresso (เอสเปรสโซเข้ม)', category: 'dark', bg: '#221812', border: '#453024', bottom: '#5A3E2F', pin: '#F0B265', text: '#FDF7EE' },
+    dark_emerald: { name: 'Dark Forest (เขียวป่ามืด)', category: 'dark', bg: '#112218', border: '#254431', bottom: '#325C43', pin: '#7CC59A', text: '#EEFAF2' },
+    dark_navy: { name: 'Midnight Navy (มิดไนท์เนวี)', category: 'dark', bg: '#121D2C', border: '#243954', bottom: '#314D70', pin: '#8BB6E8', text: '#EDF5FD' },
+    dark_plum: { name: 'Plum Berry (เบอร์รี่พลัม)', category: 'dark', bg: '#241420', border: '#47273F', bottom: '#5C3352', pin: '#F8BFD4', text: '#FDEFF6' },
+    dark_violet: { name: 'Royal Violet (ไวโอเล็ตเข้ม)', category: 'dark', bg: '#1E122A', border: '#3C2454', bottom: '#503070', pin: '#D6BEE9', text: '#F8EEFD' }
   };
 
   function applyStickyNoteTheme() {
@@ -9439,6 +9554,7 @@
     let border = state.store.stickyNoteBorder || '#EFE6C7';
     let bottom = state.store.stickyNoteBottomBorder || '#DFD2A8';
     let pin = state.store.stickyNotePinColor || '#EFA6C1';
+    let text = state.store.stickyNoteTextColor || '#3E3426';
 
     if (state.store.stickyNotePreset && STICKY_NOTE_PALETTES[state.store.stickyNotePreset]) {
       const preset = STICKY_NOTE_PALETTES[state.store.stickyNotePreset];
@@ -9446,12 +9562,14 @@
       border = preset.border;
       bottom = preset.bottom;
       pin = preset.pin;
+      text = preset.text || '#3E3426';
     }
 
     document.documentElement.style.setProperty('--sticky-bg', bg);
     document.documentElement.style.setProperty('--sticky-border', border);
     document.documentElement.style.setProperty('--sticky-bottom-border', bottom);
     document.documentElement.style.setProperty('--sticky-pin-bg', pin);
+    document.documentElement.style.setProperty('--sticky-text', text);
   }
 
   function applyAppTheme(colorHex = state.color, themeMode = state.theme) {
