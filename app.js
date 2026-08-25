@@ -288,7 +288,7 @@
     trackingReviewTitle: 'BNC HayMate',
     trackingReviewSub: '',
     trackingReviewBtnText: 'เขียนรีวิว & ให้คะแนนร้าน',
-    trackingContactLabel: '💬 ทักแชทแจ้งออเดอร์ (Line OA)',
+    trackingContactLabel: 'ทักแชทแจ้งออเดอร์ (Line OA)',
     trackingContactUrl: 'https://line.me/R/ti/p/@bnchaymate',
     // Marquee Announcement Ticker Settings
     announcementIcon: '📢',
@@ -486,6 +486,7 @@
   }
   const money = (n) => getCurrencySymbol() + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const escapeHTML = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const cleanEmoji = (s) => String(s || '').replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]|💬|📋/gu, '').trim();
 
   function getProductPriceRule(product) {
     if (!product) return null;
@@ -2798,33 +2799,103 @@
 
     root.querySelector('#filterRefreshBtn').addEventListener('click', () => { loadSupabaseData(); toast('Orders refreshed', 'success'); });
 
+    const selectedStatuses = new Set();
+    const allStatusList = ['waiting', 'verify', 'preparing', 'completed', 'cancelled'];
+    const statusLabels = {
+      waiting: 'Waiting Payment',
+      verify: 'Payment Verification',
+      preparing: 'Preparing Order',
+      completed: 'Completed',
+      cancelled: 'Cancelled'
+    };
+
     const filterBar = el(`
       <div class="filter-bar">
         <div class="search-wrap" style="flex:1; max-width:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
-          <input id="orderSearch" placeholder="Search by order ID or customer..." value="${escapeHTML(state.orderSearch)}"/>
+          <input id="orderSearch" placeholder="Search by order ID or customer..." value="${escapeHTML(state.orderSearch || '')}"/>
         </div>
-        <select class="select" id="orderStatus">
-          <option value="all">All statuses</option>
-          <option value="waiting">Waiting Payment</option>
-          <option value="verify">Payment Verification</option>
-          <option value="preparing">Preparing Order</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+        
+        <!-- White-Pink Multi-Dropdown for Order Statuses -->
+        <div class="multi-dropdown-wrap" id="adminOrderStatusWrap">
+          <div class="multi-dropdown-trigger" id="adminOrderStatusTrigger">
+            <span id="adminOrderStatusLabel">All statuses</span>
+            <span class="arrow-icon">▼</span>
+          </div>
+          <div class="multi-dropdown-menu align-right" id="adminOrderStatusMenu">
+            <div class="multi-dropdown-item" data-status="__ALL__">
+              <span class="circle-checkbox checked" id="chkAdminStatusAll">✓</span>
+              <span>เลือกทั้งหมด (All statuses)</span>
+            </div>
+            ${allStatusList.map(sKey => `
+              <div class="multi-dropdown-item" data-status="${sKey}">
+                <span class="circle-checkbox checked" data-admin-status-chk="${sKey}">✓</span>
+                <span>${escapeHTML(statusLabels[sKey] || sKey)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
       </div>
     `);
     root.appendChild(filterBar);
-    filterBar.querySelector('#orderStatus').value = state.orderFilter;
+
+    const statusTrigger = filterBar.querySelector('#adminOrderStatusTrigger');
+    const statusMenu = filterBar.querySelector('#adminOrderStatusMenu');
+    const statusLabel = filterBar.querySelector('#adminOrderStatusLabel');
+    const chkStatusAll = filterBar.querySelector('#chkAdminStatusAll');
+
+    statusTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      statusMenu.classList.toggle('show');
+      statusTrigger.classList.toggle('active');
+    });
+
+    const closeStatusDropdown = () => {
+      statusMenu.classList.remove('show');
+      statusTrigger.classList.remove('active');
+    };
+    document.addEventListener('click', closeStatusDropdown);
+    statusMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    statusMenu.querySelectorAll('.multi-dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const st = item.dataset.status;
+        if (st === '__ALL__') {
+          selectedStatuses.clear();
+          statusMenu.querySelectorAll('[data-admin-status-chk]').forEach(c => c.classList.add('checked'));
+          chkStatusAll.classList.add('checked');
+          statusLabel.textContent = 'All statuses';
+        } else {
+          if (selectedStatuses.has(st)) {
+            selectedStatuses.delete(st);
+            item.querySelector('.circle-checkbox')?.classList.remove('checked');
+          } else {
+            selectedStatuses.add(st);
+            item.querySelector('.circle-checkbox')?.classList.add('checked');
+          }
+          const allChecked = selectedStatuses.size === 0 || selectedStatuses.size === allStatusList.length;
+          chkStatusAll.classList.toggle('checked', allChecked);
+          if (selectedStatuses.size === 0) {
+            statusLabel.textContent = 'All statuses';
+          } else if (selectedStatuses.size === 1) {
+            statusLabel.textContent = statusLabels[Array.from(selectedStatuses)[0]] || Array.from(selectedStatuses)[0];
+          } else {
+            statusLabel.textContent = `สถานะ (${selectedStatuses.size})`;
+          }
+        }
+        renderList();
+      });
+    });
 
     const listCard = el(`<div class="card" style="padding:0"><div class="table-wrap"></div><div class="pagination" style="padding: 12px 16px"></div></div>`);
     root.appendChild(listCard);
 
     function renderList() {
+      const q = (filterBar.querySelector('#orderSearch')?.value || '').toLowerCase().trim();
       const filtered = ORDERS.filter(o => {
-        const matches = (o.id + ' ' + o.customer).toLowerCase().includes(state.orderSearch.toLowerCase());
-        const s = state.orderFilter;
-        return matches && (s === 'all' || o.status === s);
+        const matchesQuery = !q || (o.id + ' ' + o.customer + ' ' + (o.farm_name || '') + ' ' + (o.farm_tag || '')).toLowerCase().includes(q);
+        const matchesStatus = selectedStatuses.size === 0 || selectedStatuses.has(o.status);
+        return matchesQuery && matchesStatus;
       });
       const table = el(`
         <table class="data">
@@ -2903,7 +2974,6 @@
     renderList();
 
     filterBar.querySelector('#orderSearch').addEventListener('input', (e) => { state.orderSearch = e.target.value; renderList(); });
-    filterBar.querySelector('#orderStatus').addEventListener('change', (e) => { state.orderFilter = e.target.value; renderList(); });
   };
 
   function openDeleteOrderModal(order, onSuccess) {
@@ -3434,19 +3504,86 @@
     `));
     root.querySelector('#addProduct').addEventListener('click', () => openAddProductModal());
 
+    const selectedAdminCats = new Set();
+
     const filter = el(`
       <div class="filter-bar">
         <div class="search-wrap" style="flex:1; max-width:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
           <input placeholder="Search products..." id="prodSearch"/>
         </div>
-        <select class="select" id="prodCat">
-          <option value="">All categories</option>
-          ${CATEGORIES.map(c => `<option>${c.name}</option>`).join('')}
-        </select>
+
+        <!-- White-Pink Multi-Dropdown for Admin Categories -->
+        <div class="multi-dropdown-wrap" id="adminProdCatWrap">
+          <div class="multi-dropdown-trigger" id="adminProdCatTrigger">
+            <span id="adminProdCatLabel">All categories</span>
+            <span class="arrow-icon">▼</span>
+          </div>
+          <div class="multi-dropdown-menu align-right" id="adminProdCatMenu">
+            <div class="multi-dropdown-item" data-cat="__ALL__">
+              <span class="circle-checkbox checked" id="chkAdminProdCatAll">✓</span>
+              <span>เลือกทั้งหมด (All categories)</span>
+            </div>
+            ${CATEGORIES.map(c => `
+              <div class="multi-dropdown-item" data-cat="${escapeHTML(c.name)}">
+                <span class="circle-checkbox checked" data-admin-prod-cat-chk="${escapeHTML(c.name)}">✓</span>
+                <span>${escapeHTML(c.name)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
       </div>
     `);
     root.appendChild(filter);
+
+    const prodCatTrigger = filter.querySelector('#adminProdCatTrigger');
+    const prodCatMenu = filter.querySelector('#adminProdCatMenu');
+    const prodCatLabel = filter.querySelector('#adminProdCatLabel');
+    const chkAdminProdCatAll = filter.querySelector('#chkAdminProdCatAll');
+
+    prodCatTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      prodCatMenu.classList.toggle('show');
+      prodCatTrigger.classList.toggle('active');
+    });
+
+    const closeAdminProdDropdown = () => {
+      prodCatMenu.classList.remove('show');
+      prodCatTrigger.classList.remove('active');
+    };
+    document.addEventListener('click', closeAdminProdDropdown);
+    prodCatMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    prodCatMenu.querySelectorAll('.multi-dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const cat = item.dataset.cat;
+        if (cat === '__ALL__') {
+          selectedAdminCats.clear();
+          prodCatMenu.querySelectorAll('[data-admin-prod-cat-chk]').forEach(c => c.classList.add('checked'));
+          chkAdminProdCatAll.classList.add('checked');
+          prodCatLabel.textContent = 'All categories';
+        } else {
+          if (selectedAdminCats.has(cat)) {
+            selectedAdminCats.delete(cat);
+            item.querySelector('.circle-checkbox')?.classList.remove('checked');
+          } else {
+            selectedAdminCats.add(cat);
+            item.querySelector('.circle-checkbox')?.classList.add('checked');
+          }
+          const allChecked = selectedAdminCats.size === 0 || selectedAdminCats.size === CATEGORIES.length;
+          chkAdminProdCatAll.classList.toggle('checked', allChecked);
+          if (selectedAdminCats.size === 0) {
+            prodCatLabel.textContent = 'All categories';
+          } else if (selectedAdminCats.size === 1) {
+            prodCatLabel.textContent = Array.from(selectedAdminCats)[0];
+          } else {
+            prodCatLabel.textContent = `หมวดหมู่ (${selectedAdminCats.size})`;
+          }
+        }
+        currentPage = 1;
+        draw();
+      });
+    });
 
     const meta = el(`<div class="flex items-center" style="justify-content:space-between; margin-bottom:10px; color:var(--muted); font-size:12.5px"><span id="prodCount"></span><span>Tap to add · Right-click to remove</span></div>`);
     root.appendChild(meta);
@@ -3461,9 +3598,12 @@
     let currentPage = 1;
 
     function draw() {
-      const q = filter.querySelector('#prodSearch').value.toLowerCase();
-      const cat = filter.querySelector('#prodCat').value;
-      const list = PRODUCTS.filter(p => (!q || p.name.toLowerCase().includes(q)) && (!cat || p.cat === cat));
+      const q = filter.querySelector('#prodSearch').value.toLowerCase().trim();
+      const list = PRODUCTS.filter(p => {
+        const matchesQuery = !q || p.name.toLowerCase().includes(q) || (p.cat && p.cat.toLowerCase().includes(q));
+        const matchesCat = selectedAdminCats.size === 0 || selectedAdminCats.has(p.cat);
+        return matchesQuery && matchesCat;
+      });
       const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
       if (currentPage > totalPages) currentPage = totalPages;
       const start = (currentPage - 1) * PAGE_SIZE;
@@ -3479,8 +3619,11 @@
         const qty = state.selected[p.id] || 0;
         const imgUrl = p.image || DEFAULT_PRODUCT_IMG;
         const mediaHtml = `<img src="${escapeHTML(imgUrl)}" alt="${escapeHTML(p.name)}" onerror="this.src='${DEFAULT_PRODUCT_IMG}';" />`;
+        const rule = getProductPriceRule(p);
+        const clickStep = (rule && rule.stepQty && rule.stepQty > 0) ? rule.stepQty : 1;
+
         const tile = el(`
-          <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · ${money(p.price)}">
+          <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · ${money(p.price)} (ทีละ ${clickStep} ชิ้น)">
             ${mediaHtml}
             <span class="stock-dot"></span>
             <span class="qty-badge">${qty}</span>
@@ -3488,7 +3631,7 @@
         `);
         tile.addEventListener('click', () => {
           if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
-          state.selected[p.id] = (state.selected[p.id] || 0) + 1;
+          state.selected[p.id] = (state.selected[p.id] || 0) + clickStep;
           tile.classList.add('selected');
           const badge = tile.querySelector('.qty-badge');
           badge.textContent = state.selected[p.id];
@@ -3497,7 +3640,9 @@
         tile.addEventListener('contextmenu', (e) => {
           e.preventDefault();
           if (!state.selected[p.id]) return openProductQuickModal(p);
-          state.selected[p.id] -= 1;
+          const curr = state.selected[p.id] || 0;
+          const rem = curr % clickStep;
+          state.selected[p.id] = (rem !== 0) ? (curr - rem) : (curr - clickStep);
           if (state.selected[p.id] <= 0) {
             delete state.selected[p.id];
             tile.classList.remove('selected');
@@ -3524,7 +3669,6 @@
     }
 
     filter.querySelector('#prodSearch').addEventListener('input', () => { currentPage = 1; draw(); });
-    filter.querySelector('#prodCat').addEventListener('change', () => { currentPage = 1; draw(); });
     draw();
   };
 
@@ -5986,7 +6130,7 @@
           <div class="grid" style="grid-template-columns: 1fr 1fr; gap:14px; margin-top:12px;">
             <div class="field">
               <label>ข้อความบนปุ่มติดต่อ (Contact Button Label)</label>
-              <input class="input" id="setTrackingContactLabel" value="${escapeHTML(state.store.trackingContactLabel || '💬 ทักแชทแจ้งออเดอร์ (Line OA)')}" />
+              <input class="input" id="setTrackingContactLabel" value="${escapeHTML(cleanEmoji(state.store.trackingContactLabel || 'ทักแชทแจ้งออเดอร์ (Line OA)'))}" />
             </div>
             <div class="field">
               <label>ลิงก์ติดต่อร้าน (Contact Link / URL)</label>
@@ -8359,7 +8503,7 @@
                     <span id="multiLevelLabel">All Levels</span>
                     <span class="arrow-icon">▼</span>
                   </div>
-                  <div class="multi-dropdown-menu" id="multiLevelMenu">
+                  <div class="multi-dropdown-menu align-right" id="multiLevelMenu">
                     <div class="multi-dropdown-item" data-level="__ALL__">
                       <span class="circle-checkbox checked" id="chkLevelAll">✓</span>
                       <span>ทุกเลเวล (All Levels)</span>
@@ -8404,23 +8548,29 @@
           e.stopPropagation();
           levelMenu.classList.remove('show');
           levelTrigger.classList.remove('active');
-          catMenu.classList.toggle('show');
-          catTrigger.classList.toggle('active');
+          wrap.querySelector('#multiLevelWrap')?.classList.remove('open');
+          const isOpen = catMenu.classList.toggle('show');
+          catTrigger.classList.toggle('active', isOpen);
+          wrap.querySelector('#multiCatWrap')?.classList.toggle('open', isOpen);
         });
 
         levelTrigger.addEventListener('click', (e) => {
           e.stopPropagation();
           catMenu.classList.remove('show');
           catTrigger.classList.remove('active');
-          levelMenu.classList.toggle('show');
-          levelTrigger.classList.toggle('active');
+          wrap.querySelector('#multiCatWrap')?.classList.remove('open');
+          const isOpen = levelMenu.classList.toggle('show');
+          levelTrigger.classList.toggle('active', isOpen);
+          wrap.querySelector('#multiLevelWrap')?.classList.toggle('open', isOpen);
         });
 
         const closeAllDropdowns = () => {
           catMenu.classList.remove('show');
           catTrigger.classList.remove('active');
+          wrap.querySelector('#multiCatWrap')?.classList.remove('open');
           levelMenu.classList.remove('show');
           levelTrigger.classList.remove('active');
+          wrap.querySelector('#multiLevelWrap')?.classList.remove('open');
         };
         document.addEventListener('click', closeAllDropdowns);
         catMenu.addEventListener('click', (e) => e.stopPropagation());
@@ -8542,10 +8692,10 @@
             const imgUrl = p.image || DEFAULT_PRODUCT_IMG;
             const mediaHtml = `<img src="${escapeHTML(imgUrl)}" alt="${escapeHTML(p.name)}" onerror="this.src='${DEFAULT_PRODUCT_IMG}';" />`;
             const rule = getProductPriceRule(p);
-            const ruleTiers = rule?.tiers || [];
+            const clickStep = (rule && rule.stepQty && rule.stepQty > 0) ? rule.stepQty : 1;
 
             const tile = el(`
-              <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · Lv.${p.level || 1} · ${money(p.price)}">
+              <div class="product-tile ${stockCls} ${qty ? 'selected' : ''}" data-id="${p.id}" title="${escapeHTML(p.name)} · Lv.${p.level || 1} · ${money(p.price)} (คลิกเพิ่ม/ลดทีละ ${clickStep} ชิ้น)">
                 ${mediaHtml}
                 <span class="stock-dot"></span>
                 <span class="qty-badge">${qty}</span>
@@ -8554,8 +8704,7 @@
 
             // Tile Click to increment
             tile.addEventListener('click', (e) => {
-              if (p.stock === 0) return toast(`${p.name} is out of stock`, 'error');
-              const clickStep = (rule && rule.stepQty) ? rule.stepQty : 1;
+              if (p.stock === 0) return toast(`${p.name} สินค้าหมด`, 'error');
               state.selected[p.id] = (state.selected[p.id] || 0) + clickStep;
               tile.classList.add('selected');
               const badge = tile.querySelector('.qty-badge');
@@ -8567,7 +8716,9 @@
             tile.addEventListener('contextmenu', (e) => {
               e.preventDefault();
               if (!state.selected[p.id]) return;
-              state.selected[p.id] -= 1;
+              const curr = state.selected[p.id] || 0;
+              const rem = curr % clickStep;
+              state.selected[p.id] = (rem !== 0) ? (curr - rem) : (curr - clickStep);
               if (state.selected[p.id] <= 0) {
                 delete state.selected[p.id];
                 tile.classList.remove('selected');
@@ -8697,7 +8848,12 @@
           btn.addEventListener('click', () => {
             const pid = btn.dataset.id;
             if (state.selected[pid]) {
-              state.selected[pid]--;
+              const p = PRODUCTS.find(x => String(x.id) === String(pid));
+              const rule = p ? getProductPriceRule(p) : null;
+              const step = (rule && rule.stepQty && rule.stepQty > 0) ? rule.stepQty : 1;
+              const curr = state.selected[pid] || 0;
+              const rem = curr % step;
+              state.selected[pid] = (rem !== 0) ? (curr - rem) : (curr - step);
               if (state.selected[pid] <= 0) delete state.selected[pid];
               drawStore('cart');
               updateFloatingCartBtn();
@@ -8707,7 +8863,10 @@
         cartWrap.querySelectorAll('.btn-cart-plus').forEach(btn => {
           btn.addEventListener('click', () => {
             const pid = btn.dataset.id;
-            state.selected[pid] = (state.selected[pid] || 0) + 1;
+            const p = PRODUCTS.find(x => String(x.id) === String(pid));
+            const rule = p ? getProductPriceRule(p) : null;
+            const step = (rule && rule.stepQty && rule.stepQty > 0) ? rule.stepQty : 1;
+            state.selected[pid] = (state.selected[pid] || 0) + step;
             drawStore('cart');
             updateFloatingCartBtn();
           });
@@ -9244,7 +9403,7 @@
         const trackingTitle = state.store.trackingReviewTitle || state.store.receiptStoreName || state.store.name || 'BNC HayMate';
         const trackingSub = state.store.trackingReviewSub || '';
         const trackingBtn = state.store.trackingReviewBtnText || 'เขียนรีวิว & ให้คะแนนร้าน';
-        const contactLabel = state.store.trackingContactLabel || '💬 ทักแชทแจ้งออเดอร์ (Line OA)';
+        const contactLabel = cleanEmoji(state.store.trackingContactLabel || 'ทักแชทแจ้งออเดอร์ (Line OA)');
         const contactUrl = state.store.trackingContactUrl || 'https://line.me/R/ti/p/@bnchaymate';
 
         view.appendChild(el(`
@@ -9292,7 +9451,7 @@
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:10px;">
                 <button type="button" class="btn btn-primary" id="btnCopyOrderId" style="flex:1; min-width:180px; font-size:13px; font-weight:700; border-radius:12px; padding:9px 16px;">
-                  📋 คัดลอกรหัสออเดอร์
+                  คัดลอกรหัสออเดอร์
                 </button>
                 <a href="${escapeHTML(contactUrl)}" target="_blank" rel="noopener noreferrer" class="btn" id="btnContactShopLink" style="flex:1; min-width:180px; font-size:13px; font-weight:700; border-radius:12px; padding:9px 16px; background:var(--primary-50); color:var(--accent-text); border:1.5px solid var(--border); text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
                   ${escapeHTML(contactLabel)}
@@ -9322,7 +9481,7 @@
           const code = latestOrder.id || '';
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(code).then(() => {
-              toast(`คัดลอกรหัสออเดอร์ "${code}" เรียบร้อยแล้ว 📋`, 'success');
+              toast(`คัดลอกรหัสออเดอร์ "${code}" เรียบร้อยแล้ว`, 'success');
             }).catch(() => {
               toast(`คัดลอกรหัส: ${code}`, 'success');
             });
