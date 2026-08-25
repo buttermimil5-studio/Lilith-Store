@@ -2436,13 +2436,36 @@
 
     root.querySelector('#dashReports').addEventListener('click', () => { state.page = 'reports'; renderMenu(); renderPage(); });
 
-    const totalRev = ORDERS.reduce((s, o) => s + (o.status !== 'cancelled' ? Number(o.total || 0) : 0), 0);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayOrders = ORDERS.filter(o => o.date === todayStr && o.status !== 'cancelled');
+    const todayRev = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const aggCount = (typeof getAggregatedCustomers === 'function') ? getAggregatedCustomers().length : CUSTOMERS.length;
+
+    // Calculate real Best Seller from actual order items
+    const itemTotals = {};
+    ORDERS.forEach(o => {
+      if (o.status === 'cancelled') return;
+      if (Array.isArray(o.items_data)) {
+        o.items_data.forEach(it => {
+          const name = it.name || it.product_name;
+          if (name) itemTotals[name] = (itemTotals[name] || 0) + Number(it.qty || 1);
+        });
+      }
+    });
+    let bestSellerName = '-';
+    let bestSellerQty = 0;
+    for (const [name, qty] of Object.entries(itemTotals)) {
+      if (qty > bestSellerQty) {
+        bestSellerQty = qty;
+        bestSellerName = name;
+      }
+    }
+
     const stats = [
-      { label: "Today's Sales", value: money(totalRev), delta: ORDERS.length > 0 ? '+12.4%' : '0%', icon: ICONS.revenue },
-      { label: 'Total Orders', value: String(ORDERS.length), delta: ORDERS.length > 0 ? '+5.1%' : '0 orders', icon: ICONS.orders },
+      { label: "Today's Sales", value: money(todayRev), delta: todayOrders.length > 0 ? `${todayOrders.length} orders today` : '0 orders today', icon: ICONS.revenue },
+      { label: 'Total Orders', value: String(ORDERS.length), delta: ORDERS.length > 0 ? `+${ORDERS.length} total` : '0 orders', icon: ICONS.orders },
       { label: 'Customers', value: String(aggCount), delta: aggCount > 0 ? `+${aggCount} total` : '0 registered', icon: ICONS.customers },
-      { label: 'Best Seller', value: ORDERS.length > 0 ? 'Rose Latte' : '-', delta: ORDERS.length > 0 ? '68 sold today' : 'No sales yet', icon: ICONS.orders },
+      { label: 'Best Seller', value: escapeHTML(bestSellerName), delta: bestSellerQty > 0 ? `ขายได้ ${bestSellerQty} ชิ้น` : 'ยังไม่มียอดขาย', icon: ICONS.orders },
     ];
     const statsGrid = el(`<div class="grid stats"></div>`);
     stats.forEach(s => statsGrid.appendChild(el(`
@@ -2712,23 +2735,56 @@
 
     const colors = getThemeChartColors();
 
-    const hasOrders = ORDERS.length > 0;
+    const now = new Date();
+
+    // 1. Week Data: Last 7 days ending today
+    const weekLabels = [];
+    const weekSales = [];
+    const weekOrders = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dayNum = d.getDate();
+      weekLabels.push(`${dayName} ${dayNum}`);
+      const dayList = ORDERS.filter(o => o.date === dateStr && o.status !== 'cancelled');
+      weekSales.push(dayList.reduce((s, o) => s + Number(o.total || 0), 0));
+      weekOrders.push(dayList.length);
+    }
+
+    // 2. Month Data: 4 Weeks of current month
+    const currentYearMonth = now.toISOString().slice(0, 7);
+    const monthLabels = ['W1 (1-7)', 'W2 (8-14)', 'W3 (15-21)', 'W4 (22+)'];
+    const monthSales = [0, 0, 0, 0];
+    const monthOrders = [0, 0, 0, 0];
+    ORDERS.forEach(o => {
+      if (o.status === 'cancelled' || !o.date || !o.date.startsWith(currentYearMonth)) return;
+      const day = parseInt(o.date.split('-')[2], 10) || 1;
+      const wIdx = day <= 7 ? 0 : day <= 14 ? 1 : day <= 21 ? 2 : 3;
+      monthSales[wIdx] += Number(o.total || 0);
+      monthOrders[wIdx] += 1;
+    });
+
+    // 3. Year Data: 4 Quarters of current year
+    const currentYear = now.getFullYear();
+    const yearLabels = ['Q1 (Jan-Mar)', 'Q2 (Apr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dec)'];
+    const yearSales = [0, 0, 0, 0];
+    const yearOrders = [0, 0, 0, 0];
+    ORDERS.forEach(o => {
+      if (o.status === 'cancelled' || !o.date) return;
+      const parts = o.date.split('-');
+      if (parseInt(parts[0], 10) !== currentYear) return;
+      const mo = parseInt(parts[1], 10) || 1;
+      const qIdx = Math.min(3, Math.floor((mo - 1) / 3));
+      yearSales[qIdx] += Number(o.total || 0);
+      yearOrders[qIdx] += 1;
+    });
+
     const dataMap = {
-      Week: {
-        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        sales: hasOrders ? [420, 560, 640, 590, 780, 920, 1020] : [0, 0, 0, 0, 0, 0, 0],
-        orders: hasOrders ? [12, 15, 18, 16, 21, 26, 30] : [0, 0, 0, 0, 0, 0, 0]
-      },
-      Month: {
-        labels: ['W1', 'W2', 'W3', 'W4'],
-        sales: hasOrders ? [2800, 3400, 3900, 4500] : [0, 0, 0, 0],
-        orders: hasOrders ? [85, 105, 120, 142] : [0, 0, 0, 0]
-      },
-      Year: {
-        labels: ['Q1', 'Q2', 'Q3', 'Q4'],
-        sales: hasOrders ? [11200, 14500, 16800, 19400] : [0, 0, 0, 0],
-        orders: hasOrders ? [340, 420, 490, 580] : [0, 0, 0, 0]
-      }
+      Week: { labels: weekLabels, sales: weekSales, orders: weekOrders },
+      Month: { labels: monthLabels, sales: monthSales, orders: monthOrders },
+      Year: { labels: yearLabels, sales: yearSales, orders: yearOrders }
     };
     const cur = dataMap[currentSalesPeriod] || dataMap.Week;
 
@@ -5758,13 +5814,15 @@
 
     const totalRev = ORDERS.reduce((s, o) => s + (o.status !== 'cancelled' ? Number(o.total || 0) : 0), 0);
     const completedOrders = ORDERS.filter(o => o.status === 'completed').length;
-    const avgVal = completedOrders > 0 ? (totalRev / completedOrders) : 0;
+    const cancelledOrders = ORDERS.filter(o => o.status === 'cancelled');
+    const refundTotal = cancelledOrders.reduce((s, o) => s + Number(o.total || 0), 0);
+    const avgVal = completedOrders > 0 ? (totalRev / completedOrders) : (ORDERS.length > 0 ? totalRev / ORDERS.length : 0);
 
     const stats = [
-      { label: 'Total Revenue', value: money(totalRev), delta: ORDERS.length > 0 ? '+8.2%' : '0%', icon: ICONS.revenue },
-      { label: 'Orders Completed', value: String(completedOrders), delta: completedOrders > 0 ? `+${completedOrders}` : '0 orders', icon: ICONS.orders },
-      { label: 'Avg Order Value', value: money(avgVal), delta: avgVal > 0 ? '+4.1%' : '฿0.00', icon: ICONS.card },
-      { label: 'Refunds', value: money(0), delta: '0%', icon: ICONS.refund },
+      { label: 'Total Revenue', value: money(totalRev), delta: ORDERS.length > 0 ? `+${ORDERS.length} orders` : '0%', icon: ICONS.revenue },
+      { label: 'Orders Completed', value: String(completedOrders), delta: completedOrders > 0 ? `+${completedOrders} orders` : '0 orders', icon: ICONS.orders },
+      { label: 'Avg Order Value', value: money(avgVal), delta: avgVal > 0 ? 'ต่อออเดอร์' : '฿0.00', icon: ICONS.card },
+      { label: 'Refunds', value: money(refundTotal), delta: cancelledOrders.length > 0 ? `${cancelledOrders.length} cancelled` : '0%', icon: ICONS.refund },
     ];
     const g = el(`<div class="grid stats"></div>`);
     stats.forEach(s => g.appendChild(el(`
@@ -5778,11 +5836,11 @@
     root.appendChild(el(`
       <div class="grid two-col" style="margin-top:18px">
         <div class="card">
-          <div class="card-title">Revenue Trend</div><div class="card-sub">Daily revenue breakdown</div>
+          <div class="card-title">Revenue Trend</div><div class="card-sub">Daily revenue breakdown (ตามวันที่จริง)</div>
           <div class="chart-wrap"><canvas id="revChart"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Sales by Category</div><div class="card-sub">Share of revenue</div>
+          <div class="card-title">Sales by Category</div><div class="card-sub">Share of revenue (แบ่งตามหมวดหมู่จริง)</div>
           <div class="chart-wrap"><canvas id="catChart"></canvas></div>
         </div>
       </div>
@@ -5799,27 +5857,44 @@
     if (!window.Chart) return;
     const colors = getThemeChartColors();
 
-    const hasOrders = ORDERS.length > 0;
-
     if (rev) {
       if (reportsRevChartInstance) reportsRevChartInstance.destroy();
       const grad = rev.getContext('2d').createLinearGradient(0, 0, 0, 240);
       grad.addColorStop(0, colors.fillGradStart);
       grad.addColorStop(1, colors.fillGradEnd);
+
+      // Group real revenue by actual dates in ORDERS
+      const orderDates = Array.from(new Set(ORDERS.map(o => o.date).filter(Boolean))).sort();
+      let revLabels = [];
+      let revData = [];
+      if (orderDates.length > 0) {
+        revLabels = orderDates.map(d => {
+          const parts = d.split('-');
+          return parts.length >= 3 ? `${parts[2]}/${parts[1]}` : d;
+        });
+        revData = orderDates.map(d => {
+          return ORDERS.filter(o => o.date === d && o.status !== 'cancelled')
+            .reduce((sum, o) => sum + Number(o.total || 0), 0);
+        });
+      } else {
+        revLabels = ['Today'];
+        revData = [0];
+      }
+
       reportsRevChartInstance = new Chart(rev, {
         type: 'line',
         data: {
-          labels: ['1','5','10','15','20','25','30'],
+          labels: revLabels,
           datasets: [{
             label: 'Revenue (฿)',
-            data: hasOrders ? [420, 610, 540, 720, 880, 760, 940] : [0, 0, 0, 0, 0, 0, 0],
+            data: revData,
             borderColor: colors.primary600,
             backgroundColor: grad,
             fill: true,
-            tension: 0.4,
+            tension: 0.3,
             pointBackgroundColor: colors.card,
             pointBorderColor: colors.primary600,
-            pointRadius: 4
+            pointRadius: 5
           }]
         },
         options: {
@@ -5835,14 +5910,31 @@
 
     if (cat) {
       if (reportsCatChartInstance) reportsCatChartInstance.destroy();
-      const catCounts = CATEGORIES.map(c => PRODUCTS.filter(p => p.cat === c.name).length);
-      const totalCatProd = catCounts.reduce((a, b) => a + b, 0);
+
+      // Real category sales breakdown
+      const catSalesMap = {};
+      CATEGORIES.forEach(c => { catSalesMap[c.name] = 0; });
+      ORDERS.forEach(o => {
+        if (o.status === 'cancelled') return;
+        if (Array.isArray(o.items_data)) {
+          o.items_data.forEach(it => {
+            const catName = it.cat || 'อื่นๆ';
+            catSalesMap[catName] = (catSalesMap[catName] || 0) + Number(it.subtotal || (it.price * it.qty) || 0);
+          });
+        }
+      });
+      const hasCategorySales = Object.values(catSalesMap).some(v => v > 0);
+      const catLabels = CATEGORIES.map(c => c.name);
+      const catData = hasCategorySales
+        ? CATEGORIES.map(c => catSalesMap[c.name] || 0)
+        : CATEGORIES.map(c => PRODUCTS.filter(p => p.cat === c.name).length);
+
       reportsCatChartInstance = new Chart(cat, {
         type: 'doughnut',
         data: {
-          labels: CATEGORIES.map(c => c.name),
+          labels: catLabels,
           datasets: [{
-            data: totalCatProd > 0 ? catCounts : CATEGORIES.map(() => 0),
+            data: catData,
             backgroundColor: colors.paletteColors,
             borderColor: colors.card,
             borderWidth: 2
