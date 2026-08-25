@@ -1700,7 +1700,7 @@ table.data th:last-child, table.data td:last-child{padding-right:20px}
   border-radius: 50%;
   border: 2px solid #FFFFFF;
   background: #FFFFFF;
-  box-shadow: 0 0 0 3px #FFFFFF, 0 0 20px var(--primary-600, #EFA6C1), 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 0 3px #FFFFFF, 0 0 12px var(--primary-600, #EFA6C1), 0 4px 14px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   flex: none;
   display: grid;
