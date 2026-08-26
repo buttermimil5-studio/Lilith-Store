@@ -12,8 +12,8 @@
   // ============================================================
   // PART 1: Supabase Configuration
   // ============================================================
-  const SUPABASE_URL = 'https://hlozqirvgnjzsrrtpzrh.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhsb3pxaXJ2Z25qenNycnRwenJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1MDE1NjIsImV4cCI6MjEwMzA3NzU2Mn0.ZvW6oSDno7JdXD5a1pZw4-OYq1hZPkJuDa2_POuRWNA';
+  const SUPABASE_URL = 'https://zxoahkhgnefgdsyaiyvx.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4b2Foa2hnbmVmZ2RzeWFpeXZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1MDE3MzAsImV4cCI6MjEwMzA3NzczMH0.XozerRxX0YYCQg9oG49BmQN6JIiCDas8k1lGMtzJsOo';
   
   let supabase = null;
   function initSupabase() {
@@ -3719,6 +3719,17 @@
           if (a) a.textContent = '▼';
         }
       });
+
+      if (willShow) {
+        const rect = btn.getBoundingClientRect();
+        const viewportW = window.innerWidth;
+        const menuW = 240;
+        let left = rect.left;
+        if (left + menuW > viewportW - 8) left = Math.max(8, viewportW - menuW - 8);
+        menu.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+        menu.style.left = left + 'px';
+        menu.style.width = menuW + 'px';
+      }
 
       menu.classList.toggle('show', willShow);
       btn.classList.toggle('active', willShow || currentVals.size > 0);
