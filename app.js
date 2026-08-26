@@ -12,8 +12,8 @@
   // ============================================================
   // PART 1: Supabase Configuration
   // ============================================================
-  const SUPABASE_URL = 'https://nbqhnvzkyrnikfjojhvw.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5icWhudnpreXJuaWtmam9qaHZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzMwMTAsImV4cCI6MjEwMjkwOTAxMH0.X83FCIaEo-XFMXJzNtojcX9AOoCbuHhgWhWLNTfXyZQ';
+  const SUPABASE_URL = 'https://hlozqirvgnjzsrrtpzrh.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhsb3pxaXJ2Z25qenNycnRwenJoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1MDE1NjIsImV4cCI6MjEwMzA3NzU2Mn0.ZvW6oSDno7JdXD5a1pZw4-OYq1hZPkJuDa2_POuRWNA';
   
   let supabase = null;
   function initSupabase() {
@@ -6566,7 +6566,7 @@
           <div style="background:var(--primary-50); padding:14px; border-radius:14px; border:1px solid var(--border); margin-top:10px; margin-bottom:14px;">
             <div style="font-weight:700; font-size:13.5px; margin-bottom:8px; color:var(--text);">รูปภาพมาสคอตร้าน (Mascot Avatar Circle)</div>
             <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
-              <div style="width:54px; height:54px; border-radius:50%; overflow:hidden; border:2.5px solid #FFFFFF; box-shadow: 0 0 0 1.5px var(--primary, #F8BFD4); background:var(--card); display:grid; place-items:center; flex:none;">
+              <div style="width:54px; height:54px; border-radius:50%; overflow:hidden; border:2.5px solid var(--card, #FFFFFF); box-shadow: 0 0 0 1.5px var(--primary, #F8BFD4); background:var(--card); display:grid; place-items:center; flex:none;">
                 <img id="homeMascotImgPreview" src="${escapeHTML(currentHomeMascotImage)}" style="width:100%; height:100%; object-fit:cover; display:${currentHomeMascotImage ? 'block' : 'none'};" onerror="this.style.display='none';" />
                 <span id="homeMascotImgFallback" style="font-size:22px; display:${currentHomeMascotImage ? 'none' : 'block'};">${escapeHTML(state.store.homeMascotEmoji || '🌸')}</span>
               </div>
