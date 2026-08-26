@@ -5650,180 +5650,6 @@
         }}
       ]
     });
-  }nt-text);">${money(c.totalSpend)}</strong></td>
-                  <td><span class="badge ${c.tag === 'VIP' ? '' : c.tag === 'Regular' ? 'info' : 'success'}">${c.tag}</span></td>
-                  <td style="text-align:right; white-space:nowrap;">
-                    <button class="btn btn-sm btn-view-cust" data-key="${escapeHTML(c.key)}">View</button>
-                  </td>
-                </tr>`).join('') : `<tr><td colspan="6"><div class="empty"><div class="icon">${ICONS.customers}</div>No customer records found.</div></td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `);
-
-    root.appendChild(listCard);
-
-    listCard.querySelectorAll('tbody tr').forEach(tr => {
-      tr.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-copy-cust-tag-row')) return;
-        openCustomerModal(tr.dataset.key);
-      });
-    });
-
-    listCard.querySelectorAll('.btn-copy-cust-tag-row').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const tag = btn.dataset.tag || '';
-        const doCopy = () => {
-          btn.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#3F8E63" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
-          setTimeout(() => {
-            btn.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-          }, 1800);
-          toast(`คัดลอกแท็กฟาร์ม "${tag}" เรียบร้อยแล้ว`, 'success');
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(tag).then(doCopy).catch(doCopy);
-        } else {
-          doCopy();
-        }
-      });
-    });
-  };
-
-  function openCustomerModal(keyOrName) {
-    const aggCustomers = getAggregatedCustomers();
-    const c = aggCustomers.find(x => x.key === keyOrName || x.name.toLowerCase() === String(keyOrName).toLowerCase() || (x.farm_tag && x.farm_tag.toLowerCase() === String(keyOrName).toLowerCase()));
-    if (!c) return;
-
-    const farmInfo = [c.farm_name, c.farm_tag].filter(Boolean).join(' · ') || c.farm_tag || c.farm_name || '-';
-
-    const body = el(`
-      <div>
-        <!-- Profile Header -->
-        <div class="flex items-center gap-3 mb-3">
-          <div class="avatar" style="width:52px; height:52px; border-radius:14px; font-size:16px; font-weight:800;">
-            ${escapeHTML((c.name || 'C').slice(0, 2).toUpperCase())}
-          </div>
-          <div>
-            <div style="font-weight:800; font-size:16px; color:var(--text);">${escapeHTML(c.name)}</div>
-            <div style="color:var(--muted); font-size:12.5px;">${escapeHTML(c.phone || c.contact || c.email)}</div>
-          </div>
-          <span class="badge ${c.tag === 'VIP' ? '' : c.tag === 'Regular' ? 'info' : 'success'}" style="margin-left:auto; font-weight:700;">${c.tag}</span>
-        </div>
-
-        <!-- Farm Tag Bar -->
-        <div class="card" style="margin-bottom:14px; padding:10px 14px; background:var(--primary-50); border:1px solid var(--border); border-radius:12px;">
-          <div class="kv" style="margin:0; border:none; padding:0;">
-            <span class="k" style="font-weight:600;">Farm / Tag</span>
-            <span class="v" style="display:flex; align-items:center; gap:6px;">
-              <strong style="color:var(--text);">${escapeHTML(farmInfo)}</strong>
-              ${(c.farm_tag || c.farm_name) ? `
-                <button type="button" class="btn btn-sm btn-ghost btn-copy-cust-tag" data-tag="${escapeHTML(c.farm_tag || c.farm_name)}" style="font-size:11.5px; padding:3px 10px; border:1px solid var(--border); border-radius:8px; display:inline-flex; align-items:center; gap:5px; font-weight:700; color:var(--accent-text); cursor:pointer;">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                  <span>Copy Tag</span>
-                </button>
-              ` : ''}
-            </span>
-          </div>
-        </div>
-
-        <!-- Order History List Panel -->
-        <div style="margin-bottom:14px;">
-          <div class="flex items-center" style="justify-content:space-between; margin-bottom:8px;">
-            <div style="font-weight:700; font-size:14px; color:var(--text); display:flex; align-items:center; gap:6px;">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              <span>Order History (ประวัติการสั่งซื้อ ${c.ordersList.length} ครั้ง)</span>
-            </div>
-          </div>
-
-          <div style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto; padding-right:2px;">
-            ${c.ordersList.length ? c.ordersList.map(o => {
-              const itemsListStr = Array.isArray(o.items_data) && o.items_data.length 
-                ? o.items_data.map(it => `${escapeHTML(it.name)} x${it.qty}`).join(', ') 
-                : `${o.items || 1} items`;
-              return `
-                <div style="padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--card); display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                  <div style="min-width:0; flex:1;">
-                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <strong style="font-size:13px; color:var(--text);">#${escapeHTML(o.id)}</strong>
-                      <span style="font-size:11.5px; color:var(--muted);">· ${escapeHTML(o.date)}</span>
-                      <span class="badge ${STATUS[o.status]?.cls || ''}" style="font-size:10px; padding:1px 6px;">${STATUS[o.status]?.label || o.status}</span>
-                    </div>
-                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                      ${itemsListStr}
-                    </div>
-                  </div>
-                  <div style="font-weight:800; font-size:13.5px; color:var(--accent-text); flex:none;">
-                    ${money(o.total)}
-                  </div>
-                </div>
-              `;
-            }).join('') : `
-              <div style="text-align:center; padding:16px; color:var(--muted); font-size:12.5px; background:var(--primary-50); border:1px dashed var(--border); border-radius:10px;">
-                ไม่มีประวัติออเดอร์ในระบบ
-              </div>
-            `}
-          </div>
-        </div>
-
-        <!-- Summary Section at the Bottom -->
-        <div class="card" style="padding:14px; background:var(--primary-50); border:1px solid var(--border); border-radius:14px; margin-bottom:6px;">
-          <div style="font-size:12px; font-weight:700; color:var(--accent-text); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.5px;">
-            สรุปภาพรวมลูกค้า (Customer Summary)
-          </div>
-          <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-            <div style="background:var(--card); padding:10px; border-radius:10px; border:1px solid var(--border); text-align:center;">
-              <div style="font-size:11px; color:var(--muted); font-weight:600;">ยอดจ่ายทั้งหมด</div>
-              <div style="font-size:15px; font-weight:800; color:var(--accent-text); margin-top:2px;">${money(c.totalSpend)}</div>
-            </div>
-            <div style="background:var(--card); padding:10px; border-radius:10px; border:1px solid var(--border); text-align:center;">
-              <div style="font-size:11px; color:var(--muted); font-weight:600;">จำนวนครั้งที่ซื้อ</div>
-              <div style="font-size:15px; font-weight:800; color:var(--text); margin-top:2px;">${c.ordersCount} ครั้ง</div>
-            </div>
-            <div style="background:var(--card); padding:10px; border-radius:10px; border:1px solid var(--border); text-align:center;">
-              <div style="font-size:11px; color:var(--muted); font-weight:600;">ออเดอร์ที่ชอบที่สุด</div>
-              <div style="font-size:11.5px; font-weight:700; color:var(--primary-600); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHTML(c.favoriteItem)}">
-                ${escapeHTML(c.favoriteItem)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `);
-
-    body.querySelectorAll('.btn-copy-cust-tag').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const tag = btn.dataset.tag || '';
-        const doCopy = () => {
-          btn.innerHTML = `
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#3F8E63" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <span style="color:#3F8E63;">Copied!</span>
-          `;
-          btn.style.borderColor = '#7CC59A';
-          setTimeout(() => {
-            btn.innerHTML = `
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              <span>Copy Tag</span>
-            `;
-            btn.style.borderColor = 'var(--border)';
-          }, 1800);
-          toast(`คัดลอกแท็กฟาร์ม "${tag}" เรียบร้อยแล้ว`, 'success');
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(tag).then(doCopy).catch(doCopy);
-        } else {
-          doCopy();
-        }
-      });
-    });
-
-    openModal({
-      title: 'Customer Profile',
-      body,
-      actions: [{ label: 'Close', kind: 'ghost' }]
-    });
   }
 
   // ============================================================
@@ -6525,6 +6351,7 @@
     let currentReceiptFooterImage = state.store.receiptFooterImage || '';
     let currentQrPaymentImage = state.store.qr_image_url || '';
     let currentHomeMascotImage = state.store.homeMascotImage || '';
+    let currentFarmTagGuideImage = state.store.farmTagGuideImage || '';
     let currentAnnImage = state.store.announcementImage || '';
     let currentHighlights = JSON.parse(JSON.stringify(state.store.highlights || DEFAULT_STORE_CONFIG.highlights));
     let currentPaymentAccounts = JSON.parse(JSON.stringify(state.store.payment_accounts || DEFAULT_STORE_CONFIG.payment_accounts));
@@ -6763,6 +6590,28 @@
             <div class="field">
               <label>ลิงก์ติดต่อร้าน (Contact Link / URL)</label>
               <input class="input" id="setTrackingContactUrl" value="${escapeHTML(state.store.trackingContactUrl || 'https://line.me/R/ti/p/@bnchaymate')}" placeholder="เช่น https://line.me/R/ti/p/@bnchaymate หรือ https://m.me/..." />
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4.9: Farm Tag Guide Image (Checkout Modal) -->
+        <div class="card">
+          <div class="card-title">Farm Tag Guide Image (รูปภาพแนะนำวิธีดูแท็กฟาร์มในหน้า Checkout)</div>
+          <div class="card-sub">กำหนดรูปภาพ 1:1 สำหรับแสดงใน Popup เมื่อลูกค้ากดปุ่ม "วิธีดูแท็กฟาร์ม" ในหน้าสั่งซื้อ (หากไม่ใส่จะใช้ภาพประกอบมาตรฐานของระบบ)</div>
+          
+          <div style="background:var(--primary-50); padding:14px; border-radius:14px; border:1px solid var(--border); margin-top:12px;">
+            <div style="display:flex; gap:12px; align-items:center;">
+              <div style="width:54px; height:54px; border-radius:12px; overflow:hidden; border:2px dashed var(--primary-600); background:var(--card); display:grid; place-items:center; flex:none;">
+                <img id="farmTagGuideImgPreview" src="${escapeHTML(currentFarmTagGuideImage || DEFAULT_FARM_TAG_GUIDE_SVG)}" style="width:100%; height:100%; object-fit:cover;" />
+              </div>
+              <div style="flex:1;">
+                <input type="file" id="fileFarmTagGuide" accept="image/*" style="display:none;" />
+                <div class="flex gap-2">
+                  <button type="button" class="btn btn-sm" id="btnUploadFarmTagGuide" style="font-size:11.5px; padding:5px 12px; font-weight:700;">อัปโหลดรูปภาพ (1:1)</button>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btnClearFarmTagGuide" style="font-size:11.5px; padding:5px 8px; color:var(--danger); display:${currentFarmTagGuideImage ? 'inline-block' : 'none'};">ใช้รูปภาพเริ่มต้น</button>
+                </div>
+                <input class="input" id="setFarmTagGuideImgUrl" value="${escapeHTML(currentFarmTagGuideImage)}" placeholder="หรือวาง URL รูปภาพ เช่น https://..." style="font-size:12px; margin-top:6px;" />
+              </div>
             </div>
           </div>
         </div>
@@ -8026,6 +7875,43 @@
       toast('ลบรูปภาพไอคอนประกาศแล้ว', 'info');
     });
 
+    // Farm Tag Guide Image Handlers (Checkout 1:1 Modal)
+    const fileFarmTagGuide = formWrap.querySelector('#fileFarmTagGuide');
+    const btnUploadFarmTagGuide = formWrap.querySelector('#btnUploadFarmTagGuide');
+    const btnClearFarmTagGuide = formWrap.querySelector('#btnClearFarmTagGuide');
+    const farmTagGuideImgPreview = formWrap.querySelector('#farmTagGuideImgPreview');
+    const farmTagGuideUrlInp = formWrap.querySelector('#setFarmTagGuideImgUrl');
+
+    btnUploadFarmTagGuide?.addEventListener('click', () => fileFarmTagGuide?.click());
+    fileFarmTagGuide?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        currentFarmTagGuideImage = await uploadProductImage(file);
+        if (farmTagGuideImgPreview) farmTagGuideImgPreview.src = currentFarmTagGuideImage;
+        if (btnClearFarmTagGuide) btnClearFarmTagGuide.style.display = 'inline-block';
+        if (farmTagGuideUrlInp) farmTagGuideUrlInp.value = currentFarmTagGuideImage;
+        toast('อัปโหลดรูปภาพแนะนำแท็กฟาร์มเรียบร้อย', 'success');
+      } catch (err) {
+        toast('อัปโหลดไม่สำเร็จ: ' + (err.message || err), 'error');
+      }
+    });
+
+    farmTagGuideUrlInp?.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      currentFarmTagGuideImage = val;
+      if (farmTagGuideImgPreview) farmTagGuideImgPreview.src = val || DEFAULT_FARM_TAG_GUIDE_SVG;
+      if (btnClearFarmTagGuide) btnClearFarmTagGuide.style.display = val ? 'inline-block' : 'none';
+    });
+
+    btnClearFarmTagGuide?.addEventListener('click', () => {
+      currentFarmTagGuideImage = '';
+      if (farmTagGuideUrlInp) farmTagGuideUrlInp.value = '';
+      if (farmTagGuideImgPreview) farmTagGuideImgPreview.src = DEFAULT_FARM_TAG_GUIDE_SVG;
+      btnClearFarmTagGuide.style.display = 'none';
+      toast('ใช้รูปภาพแนะนำแท็กฟาร์มเริ่มต้นของระบบ', 'info');
+    });
+
     // 4 Highlights Settings Manager (Requirement 6)
     const renderHighlightsList = () => {
       const listEl = formWrap.querySelector('#highlightsSettingsList');
@@ -8295,6 +8181,9 @@
 
       // Save QR Code Payment Image
       state.store.qr_image_url = currentQrPaymentImage;
+
+      // Save Farm Tag Guide Image (Checkout Modal)
+      state.store.farmTagGuideImage = currentFarmTagGuideImage;
 
       // Save Payment Accounts
       state.store.payment_accounts = currentPaymentAccounts.map(acc => ({
@@ -8858,8 +8747,12 @@
               </div>
 
               ${BANNERS.length > 1 ? `
-                <button class="carousel-btn prev" id="cPrev" aria-label="Previous">‹</button>
-                <button class="carousel-btn next" id="cNext" aria-label="Next">›</button>
+                <button class="carousel-btn prev" id="cPrev" aria-label="Previous">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button class="carousel-btn next" id="cNext" aria-label="Next">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
               ` : ''}
 
               <div class="carousel-dots" id="cDots">
@@ -9118,7 +9011,7 @@
                     </div>
                     ${CATEGORIES.map(c => `
                       <div class="multi-dropdown-item" data-cat="${escapeHTML(c.name)}">
-                        <span class="circle-checkbox checked" data-cat-chk="${escapeHTML(c.name)}">✓</span>
+                        <span class="circle-checkbox" data-cat-chk="${escapeHTML(c.name)}"></span>
                         <span>${escapeHTML(c.name)}</span>
                       </div>
                     `).join('')}
@@ -9138,7 +9031,7 @@
                     </div>
                     ${levelOptions.map(l => `
                       <div class="multi-dropdown-item" data-level="${escapeHTML(l)}">
-                        <span class="circle-checkbox checked" data-level-chk="${escapeHTML(l)}">✓</span>
+                        <span class="circle-checkbox" data-level-chk="${escapeHTML(l)}"></span>
                         <span>${escapeHTML(l)}</span>
                       </div>
                     `).join('')}
@@ -9210,25 +9103,40 @@
             const cat = item.dataset.cat;
             if (cat === '__ALL__') {
               selectedCats.clear();
-              catMenu.querySelectorAll('[data-cat-chk]').forEach(c => c.classList.add('checked'));
+              catMenu.querySelectorAll('[data-cat-chk]').forEach(c => {
+                c.classList.remove('checked');
+                c.textContent = '';
+              });
               wrap.querySelector('#chkCatAll').classList.add('checked');
+              wrap.querySelector('#chkCatAll').textContent = '✓';
               catLabel.textContent = 'All categories';
             } else {
+              const chk = item.querySelector('.circle-checkbox');
               if (selectedCats.has(cat)) {
                 selectedCats.delete(cat);
-                item.querySelector('.circle-checkbox')?.classList.remove('checked');
+                if (chk) { chk.classList.remove('checked'); chk.textContent = ''; }
               } else {
                 selectedCats.add(cat);
-                item.querySelector('.circle-checkbox')?.classList.add('checked');
+                if (chk) { chk.classList.add('checked'); chk.textContent = '✓'; }
               }
               const allChecked = selectedCats.size === 0 || selectedCats.size === CATEGORIES.length;
-              wrap.querySelector('#chkCatAll').classList.toggle('checked', allChecked);
-              if (selectedCats.size === 0) {
+              if (allChecked) {
+                selectedCats.clear();
+                catMenu.querySelectorAll('[data-cat-chk]').forEach(c => {
+                  c.classList.remove('checked');
+                  c.textContent = '';
+                });
+                wrap.querySelector('#chkCatAll').classList.add('checked');
+                wrap.querySelector('#chkCatAll').textContent = '✓';
                 catLabel.textContent = 'All categories';
-              } else if (selectedCats.size === 1) {
-                catLabel.textContent = Array.from(selectedCats)[0];
               } else {
-                catLabel.textContent = `หมวดหมู่ (${selectedCats.size})`;
+                wrap.querySelector('#chkCatAll').classList.remove('checked');
+                wrap.querySelector('#chkCatAll').textContent = '';
+                if (selectedCats.size === 1) {
+                  catLabel.textContent = Array.from(selectedCats)[0];
+                } else {
+                  catLabel.textContent = `หมวดหมู่ (${selectedCats.size})`;
+                }
               }
             }
             page = 1;
@@ -9242,25 +9150,40 @@
             const lvl = item.dataset.level;
             if (lvl === '__ALL__') {
               selectedLevels.clear();
-              levelMenu.querySelectorAll('[data-level-chk]').forEach(c => c.classList.add('checked'));
+              levelMenu.querySelectorAll('[data-level-chk]').forEach(c => {
+                c.classList.remove('checked');
+                c.textContent = '';
+              });
               wrap.querySelector('#chkLevelAll').classList.add('checked');
+              wrap.querySelector('#chkLevelAll').textContent = '✓';
               levelLabel.textContent = 'All Levels';
             } else {
+              const chk = item.querySelector('.circle-checkbox');
               if (selectedLevels.has(lvl)) {
                 selectedLevels.delete(lvl);
-                item.querySelector('.circle-checkbox')?.classList.remove('checked');
+                if (chk) { chk.classList.remove('checked'); chk.textContent = ''; }
               } else {
                 selectedLevels.add(lvl);
-                item.querySelector('.circle-checkbox')?.classList.add('checked');
+                if (chk) { chk.classList.add('checked'); chk.textContent = '✓'; }
               }
               const allChecked = selectedLevels.size === 0 || selectedLevels.size === levelOptions.length;
-              wrap.querySelector('#chkLevelAll').classList.toggle('checked', allChecked);
-              if (selectedLevels.size === 0) {
+              if (allChecked) {
+                selectedLevels.clear();
+                levelMenu.querySelectorAll('[data-level-chk]').forEach(c => {
+                  c.classList.remove('checked');
+                  c.textContent = '';
+                });
+                wrap.querySelector('#chkLevelAll').classList.add('checked');
+                wrap.querySelector('#chkLevelAll').textContent = '✓';
                 levelLabel.textContent = 'All Levels';
-              } else if (selectedLevels.size === 1) {
-                levelLabel.textContent = Array.from(selectedLevels)[0];
               } else {
-                levelLabel.textContent = `เลเวล (${selectedLevels.size})`;
+                wrap.querySelector('#chkLevelAll').classList.remove('checked');
+                wrap.querySelector('#chkLevelAll').textContent = '';
+                if (selectedLevels.size === 1) {
+                  levelLabel.textContent = Array.from(selectedLevels)[0];
+                } else {
+                  levelLabel.textContent = `เลเวล (${selectedLevels.size})`;
+                }
               }
             }
             page = 1;
@@ -9564,7 +9487,10 @@
                     <input class="input" id="coFarmName" placeholder="เช่น Green Valley Farm" value="${escapeHTML(state.checkoutForm.farmName || '')}" style="padding:9px 12px; font-size:13px; border-radius:12px;"/>
                   </div>
                   <div class="field">
-                    <label style="font-size:12px; font-weight:700;">Farm Tag</label>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                      <label style="font-size:12px; font-weight:700; margin:0;">Farm Tag</label>
+                      <button type="button" class="btn-guide-link" id="btnViewFarmTagGuide">วิธีดูแท็กฟาร์ม</button>
+                    </div>
                     <input class="input" id="coFarmTag" placeholder="เช่น #FARM-01" value="${escapeHTML(state.checkoutForm.farmTag || '')}" style="padding:9px 12px; font-size:13px; border-radius:12px;"/>
                   </div>
                 </div>
@@ -9641,6 +9567,12 @@
         const coFarmNameEl = view.querySelector('#coFarmName');
         const coFarmTagEl = view.querySelector('#coFarmTag');
         const coContactEl = view.querySelector('#coContact');
+
+        view.querySelector('#btnViewFarmTagGuide')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openFarmTagGuideModal();
+        });
 
         coNameEl?.addEventListener('input', (e) => { state.checkoutForm.name = e.target.value; });
         coFarmNameEl?.addEventListener('input', (e) => { state.checkoutForm.farmName = e.target.value; });
