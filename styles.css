@@ -1721,9 +1721,9 @@ table.data th:last-child, table.data td:last-child{padding-right:20px}
   width: 68px;
   height: 68px;
   border-radius: 50%;
-  border: 2px solid var(--primary-600, #EFA6C1);
+  border: 3px solid #FFFFFF;
+  box-shadow: 0 0 0 2px var(--primary, #F8BFD4), var(--shadow-soft);
   background: var(--card, #FFFFFF);
-  box-shadow: var(--shadow-soft);
   overflow: hidden;
   flex: none;
   display: flex;

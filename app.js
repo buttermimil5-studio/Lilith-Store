@@ -450,8 +450,13 @@
     clearedOrderNotifIds: (() => {
       try {
         const raw = JSON.parse(localStorage.getItem('haypos_cleared_order_notifs') || '[]');
-        return Array.isArray(raw) ? new Set(raw) : new Set();
+        return Array.isArray(raw) ? new Set(raw.map(String)) : new Set();
       } catch (e) { return new Set(); }
+    })(),
+    lastNotifClearTime: (() => {
+      try {
+        return Number(localStorage.getItem('haypos_last_notif_clear_time') || 0);
+      } catch (e) { return 0; }
     })(),
     deviceId: initialDeviceId,
     liveOnlineUsers: [],
@@ -463,6 +468,7 @@
       localStorage.setItem('haypos_cleared_order_notifs', JSON.stringify(Array.from(state.clearedOrderNotifIds)));
       localStorage.setItem('haypos_cleared_stock_notifs', JSON.stringify(Array.from(state.clearedNotifProductIds)));
       localStorage.setItem('haypos_recent_order_notifs', JSON.stringify((state.recentOrderNotifs || []).slice(0, 50)));
+      localStorage.setItem('haypos_last_notif_clear_time', String(state.lastNotifClearTime || 0));
     } catch (e) {}
   }
 
@@ -688,19 +694,21 @@
 
   function notifyNewOrder(order) {
     if (!order) return;
+    const orderTimestamp = order.timestamp || (order.date ? new Date(order.date).getTime() : Date.now()) || Date.now();
+    const orderIdStr = String(order.id);
     const notifItem = {
-      id: order.id,
+      id: orderIdStr,
       customer: order.customer || 'Customer',
       total: Number(order.total || 0),
       items: order.items || 1,
-      time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-      timestamp: Date.now()
+      time: new Date(orderTimestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: orderTimestamp
     };
-    state.clearedOrderNotifIds.delete(order.id);
-    if (!state.recentOrderNotifs.some(x => String(x.id) === String(notifItem.id))) {
-      state.recentOrderNotifs.unshift(notifItem);
-      if (state.recentOrderNotifs.length > 50) state.recentOrderNotifs.pop();
-    }
+    state.clearedOrderNotifIds.delete(orderIdStr);
+    state.recentOrderNotifs = (state.recentOrderNotifs || []).filter(x => String(x.id) !== orderIdStr);
+    state.recentOrderNotifs.unshift(notifItem);
+    state.recentOrderNotifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    if (state.recentOrderNotifs.length > 50) state.recentOrderNotifs.length = 50;
     saveNotifsState();
 
     // Notify only if Admin is active; Customer sees only their own checkout success toast
@@ -723,8 +731,12 @@
 
     const lowThresh = Number(state.store && state.store.stockLowThreshold !== undefined ? state.store.stockLowThreshold : 100);
     const lowProducts = PRODUCTS.filter(p => p.stock < lowThresh);
-    const activeStockAlerts = lowProducts.filter(p => !state.clearedNotifProductIds.has(p.id));
-    const activeOrderAlerts = (state.recentOrderNotifs || []).filter(o => !state.clearedOrderNotifIds.has(o.id));
+    const activeStockAlerts = lowProducts.filter(p => !state.clearedNotifProductIds.has(String(p.id)) && !state.clearedNotifProductIds.has(p.id));
+    
+    // Always sort descending by timestamp so newest notifications are on top
+    const activeOrderAlerts = (state.recentOrderNotifs || [])
+      .filter(o => !state.clearedOrderNotifIds.has(String(o.id)))
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     const totalCount = activeStockAlerts.length + activeOrderAlerts.length;
 
@@ -752,7 +764,7 @@
       } else {
         let html = '';
 
-        // 1. New Orders Section
+        // 1. New Orders Section (Newest on top)
         if (activeOrderAlerts.length > 0) {
           html += `
             <div style="font-size:11.5px; font-weight:800; color:var(--text); padding:4px 2px; display:flex; align-items:center; gap:6px;">
@@ -832,8 +844,9 @@
         notifList.querySelectorAll('.btn-notif-dismissorder').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const oid = btn.dataset.oid;
+            const oid = String(btn.dataset.oid);
             state.clearedOrderNotifIds.add(oid);
+            state.recentOrderNotifs = (state.recentOrderNotifs || []).filter(x => String(x.id) !== oid);
             saveNotifsState();
             updateStockNotifications();
             toast('ลบการแจ้งเตือนออเดอร์นี้แล้ว', 'info');
@@ -853,7 +866,7 @@
         notifList.querySelectorAll('.btn-notif-dismiss').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const pid = btn.dataset.id;
+            const pid = String(btn.dataset.id);
             state.clearedNotifProductIds.add(pid);
             saveNotifsState();
             updateStockNotifications();
@@ -886,10 +899,12 @@
     if (btnClearNotifs) {
       btnClearNotifs.addEventListener('click', (e) => {
         e.stopPropagation();
+        state.lastNotifClearTime = Date.now();
         const lowThresh = Number(state.store && state.store.stockLowThreshold !== undefined ? state.store.stockLowThreshold : 100);
         const lowProducts = PRODUCTS.filter(p => p.stock < lowThresh);
-        lowProducts.forEach(p => state.clearedNotifProductIds.add(p.id));
-        (state.recentOrderNotifs || []).forEach(o => state.clearedOrderNotifIds.add(o.id));
+        lowProducts.forEach(p => state.clearedNotifProductIds.add(String(p.id)));
+        (state.recentOrderNotifs || []).forEach(o => state.clearedOrderNotifIds.add(String(o.id)));
+        state.recentOrderNotifs = [];
         saveNotifsState();
         updateStockNotifications();
         toast('ล้างการแจ้งเตือนทั้งหมดแล้ว', 'success');
@@ -1273,21 +1288,28 @@
         persistOrders();
 
         // Populate unread waiting order notifications for offline admin catch-up
-        ORDERS.forEach(ord => {
-          if (ord.status === 'waiting' && !state.clearedOrderNotifIds.has(ord.id)) {
+        const sortedOrders = [...ORDERS].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        sortedOrders.forEach(ord => {
+          const orderIdStr = String(ord.id);
+          const orderTime = (ord.date ? new Date(ord.date).getTime() : 0);
+          if (ord.status === 'waiting' && !state.clearedOrderNotifIds.has(orderIdStr)) {
+            if (state.lastNotifClearTime && orderTime && orderTime <= state.lastNotifClearTime) {
+              return;
+            }
             const notifItem = {
-              id: ord.id,
+              id: orderIdStr,
               customer: ord.customer || 'Customer',
               total: Number(ord.total || 0),
               items: ord.items || 1,
               time: ord.date || new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-              timestamp: Date.now()
+              timestamp: orderTime || Date.now()
             };
-            if (!state.recentOrderNotifs.some(x => String(x.id) === String(ord.id))) {
-              state.recentOrderNotifs.unshift(notifItem);
+            if (!state.recentOrderNotifs.some(x => String(x.id) === orderIdStr)) {
+              state.recentOrderNotifs.push(notifItem);
             }
           }
         });
+        state.recentOrderNotifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         if (state.recentOrderNotifs.length > 50) state.recentOrderNotifs.length = 50;
         saveNotifsState();
         updateStockNotifications();
@@ -6544,7 +6566,7 @@
           <div style="background:var(--primary-50); padding:14px; border-radius:14px; border:1px solid var(--border); margin-top:10px; margin-bottom:14px;">
             <div style="font-weight:700; font-size:13.5px; margin-bottom:8px; color:var(--text);">รูปภาพมาสคอตร้าน (Mascot Avatar Circle)</div>
             <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
-              <div style="width:54px; height:54px; border-radius:50%; overflow:hidden; border:2px dashed var(--primary-600); background:var(--card); display:grid; place-items:center; flex:none;">
+              <div style="width:54px; height:54px; border-radius:50%; overflow:hidden; border:2.5px solid #FFFFFF; box-shadow: 0 0 0 1.5px var(--primary, #F8BFD4); background:var(--card); display:grid; place-items:center; flex:none;">
                 <img id="homeMascotImgPreview" src="${escapeHTML(currentHomeMascotImage)}" style="width:100%; height:100%; object-fit:cover; display:${currentHomeMascotImage ? 'block' : 'none'};" onerror="this.style.display='none';" />
                 <span id="homeMascotImgFallback" style="font-size:22px; display:${currentHomeMascotImage ? 'none' : 'block'};">${escapeHTML(state.store.homeMascotEmoji || '🌸')}</span>
               </div>
